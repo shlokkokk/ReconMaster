@@ -190,10 +190,12 @@ install_additional_tools() {
 # Setup Python environment
 setup_python_env() {
     echo -e "${CYAN}[*] Setting up Python environment...${NC}"
-    
-    # Install Python packages
-    pip3 install --upgrade pip
-    pip3 install -U \
+
+    echo -e "${YELLOW}[!] Installing Python packages in safe mode...${NC}"
+
+    pip3 install --upgrade pip --break-system-packages || true
+
+    pip3 install \
         requests \
         urllib3 \
         beautifulsoup4 \
@@ -204,39 +206,34 @@ setup_python_env() {
         termcolor \
         pyfiglet \
         dnslib \
-        dnspython
-    
+        dnspython \
+        --break-system-packages || true
+
     echo -e "${GREEN}[✔] Python environment setup completed${NC}"
 }
 
 # Create ReconMaster directory structure
 setup_reconmaster() {
     echo -e "${CYAN}[*] Setting up ReconMaster...${NC}"
-    
-    # Copy ReconMaster to /usr/local/bin
+
     if [[ -f "reconmaster.py" ]]; then
-        cp reconmaster.py /usr/local/bin/reconmaster
+        ln -sf "$(pwd)/reconmaster.py" /usr/local/bin/reconmaster
         chmod +x /usr/local/bin/reconmaster
-        echo -e "${GREEN}[✔] ReconMaster installed to /usr/local/bin/reconmaster${NC}"
+        echo -e "${GREEN}[✔] Launcher installed at /usr/local/bin/reconmaster${NC}"
     else
         echo -e "${RED}[!] reconmaster.py not found in current directory${NC}"
-        echo -e "${YELLOW}    Please run this script from the directory containing reconmaster.py${NC}"
         exit 1
     fi
-    
-    # Create wordlists directory
+
     mkdir -p /usr/share/wordlists/reconmaster
-    
-    # Download some useful wordlists
-    echo -e "${YELLOW}[*] Downloading wordlists...${NC}"
-    
-    # SecLists (if not already present)
+
     if [[ ! -d "/usr/share/seclists" ]]; then
         apt install seclists -y
     fi
-    
+
     echo -e "${GREEN}[✔] ReconMaster setup completed${NC}"
 }
+
 
 # Test installation
 test_installation() {
