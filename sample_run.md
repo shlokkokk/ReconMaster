@@ -30,8 +30,8 @@ user@kali:~$ sudo reconmaster
 ║ ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝  ║
 ║                                                                                                  ║ 
 ║                                                                                                  ║
-║                     {Colors.WHITE}Professional Reconnaissance Framework v1.0{Colors.CYAN}        ║ 
-║                           {Colors.WHITE}For Kali Linux Bug Bounty Hunters{Colors.CYAN}           ║                                           ║
+║                        Professional Reconnaissance Framework v1.0                                ║ 
+║                            For Kali Linux Bug Bounty Hunters                                     ║                                          
 ╚══════════════════════════════════════════════════════════════════════════════════════════════════╝
 
 [*] Checking Tool Installation Status...
