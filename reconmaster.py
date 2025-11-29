@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║                        ReconMaster - Professional Recon Framework          ║
-║                                for Kali Linux                               ║
+║                 ReconMaster - Professional Recon Framework                   ║
+║                              for Kali Linux                                  ║
 ║                                                                              ║
-║    A beautiful, powerful, automated, and intelligent reconnaissance tool    ║
-║                    for bug bounty hunters and pentesters                    ║
+║    A beautiful, powerful, automated, and intelligent reconnaissance tool     ║
+║                    for bug bounty hunters and pentesters                     ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """
 
@@ -79,7 +79,7 @@ class ReconMaster:
 ║                                                                                                  ║ 
 ║                                                                                                  ║
 ║                  {Colors.WHITE}Professional Reconnaissance Framework v1.0{Colors.CYAN}           ║ 
-║                        {Colors.WHITE}For Kali Linux Bug Bounty Hunters{Colors.CYAN}              ║                                           ║
+║                        {Colors.WHITE}For Kali Linux Bug Bounty Hunters{Colors.CYAN}              ║                                           
 ╚══════════════════════════════════════════════════════════════════════════════════════════════════╝
 
 {Colors.RESET}
