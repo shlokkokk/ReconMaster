@@ -20,21 +20,19 @@ This document provides a realistic example of using ReconMaster for bug bounty r
 ```bash
 user@kali:~$ sudo reconmaster
 
-╔══════════════════════════════════════════════════════════════════════════════╗
-║                        ReconMaster - Professional Recon Framework          ║
-║                                for Kali Linux                               ║
-║                                                                              ║
-║    ██████╗ ███████╗ ██████╗ ██████╗ ███╗   ██╗██████╗ ██╗   ██╗██╗███████╗  ║
-║    ██╔══██╗██╔════╝██╔════╝██╔═══██╗████╗  ██║██╔══██╗██║   ██║██║██╔════╝  ║
-║    ██████╔╝█████╗  ██║     ██║   ██║██╔██╗ ██║██████╔╝██║   ██║██║█████╗    ║
-║    ██╔══██╗██╔══╝  ██║     ██║   ██║██║╚██╗██║██╔══██╗╚██╗ ██╔╝██║██╔══╝    ║
-║    ██║  ██║███████╗╚██████╗╚██████╔╝██║ ╚████║██║  ██║ ╚████╔╝ ██║███████╗  ║
-║    ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═╝  ╚═══╝  ╚═╝╚══════╝  ║
-║                                                                              ║
-║              Professional Reconnaissance Framework v1.0                      ║
-║                    For Kali Linux Bug Bounty Hunters                         ║
-║                                                                              ║
-╚══════════════════════════════════════════════════════════════════════════════╝
+╔══════════════════════════════════════════════════════════════════════════════════════════════════╗
+║                                                                                                  ║
+║ ██████╗ ███████╗ ██████╗ ██████╗ ███╗   ██╗███╗   ███╗ █████╗ ███████╗████████╗███████╗██████╗   ║
+║ ██╔══██╗██╔════╝██╔════╝██╔═══██╗████╗  ██║████╗ ████║██╔══██╗██╔════╝╚══██╔══╝██╔════╝██╔══██╗  ║
+║ ██████╔╝█████╗  ██║     ██║   ██║██╔██╗ ██║██╔████╔██║███████║███████╗   ██║   █████╗  ██████╔╝  ║
+║ ██╔══██╗██╔══╝  ██║     ██║   ██║██║╚██╗██║██╔██╔  ██║██╔══██║╚════██║   ██║   ██╔══╝  ██╔══██╗  ║
+║ ██║  ██║███████╗╚██████╗╚██████╔╝██║ ╚████║██║╚═╝  ██║██║  ██║███████║   ██║   ███████╗██║  ██║  ║
+║ ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝  ║
+║                                                                                                  ║ 
+║                                                                                                  ║
+║                     {Colors.WHITE}Professional Reconnaissance Framework v1.0{Colors.CYAN}        ║ 
+║                           {Colors.WHITE}For Kali Linux Bug Bounty Hunters{Colors.CYAN}           ║                                           ║
+╚══════════════════════════════════════════════════════════════════════════════════════════════════╝
 
 [*] Checking Tool Installation Status...
 
@@ -54,23 +52,23 @@ user@kali:~$ sudo reconmaster
 [!] All tools are installed and ready!
 
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║                          RECONMASTER MAIN MENU                              ║
+║                          RECONMASTER MAIN MENU                               ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║                                                                              ║
 ║    [1] Subdomain Enumeration      - Discover subdomains using multiple tools ║
-║    [2] DNS Resolution             - Resolve DNS records for found subdomains  ║
-║    [3] Alive Hosts Check          - Check which hosts are alive via HTTP      ║
+║    [2] DNS Resolution             - Resolve DNS records for found subdomains ║
+║    [3] Alive Hosts Check          - Check which hosts are alive via HTTP     ║
 ║    [4] Fast Port Scan             - Quick port scan using Naabu              ║
-║    [5] Full Port Scan             - Comprehensive scan with Nmap            ║
+║    [5] Full Port Scan             - Comprehensive scan with Nmap             ║
 ║    [6] URL Collection             - Gather URLs from multiple sources        ║
-║    [7] WAF Detection              - Identify Web Application Firewalls      ║
-║    [8] Vulnerability Scan         - Scan for vulnerabilities with Nuclei   ║
-║    [9] FULL AUTOMATED RECON       - Run complete reconnaissance sequence   ║
+║    [7] WAF Detection              - Identify Web Application Firewalls       ║
+║    [8] Vulnerability Scan         - Scan for vulnerabilities with Nuclei     ║
+║    [9] FULL AUTOMATED RECON       - Run complete reconnaissance sequence     ║
 ║                                                                              ║
-║    [C] Change Domain              - Set a different target domain          ║
-║    [I] Initialize Tools           - Check and install required tools       ║
-║    [H] Help                       - Show detailed help information         ║
-║    [Q] Quit                       - Exit the framework                     ║
+║    [C] Change Domain              - Set a different target domain            ║
+║    [I] Initialize Tools           - Check and install required tools         ║
+║    [H] Help                       - Show detailed help information           ║
+║    [Q] Quit                       - Exit the framework                       ║
 ║                                                                              ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
