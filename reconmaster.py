@@ -225,20 +225,20 @@ class ReconMaster:
 ║                                         RECONMASTER MAIN MENU                                           ║
 ╠═════════════════════════════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                                         ║
-║    {Colors.WHITE}[1] Subdomain Enumeration{Colors.CYAN}      - Discover subdomains using multiple tools                            ║
-║    {Colors.WHITE}[2] DNS Resolution{Colors.CYAN}           - Resolve DNS records for found subdomains                              ║
-║    {Colors.WHITE}[3] Alive Hosts Check{Colors.CYAN}        - Check which hosts are alive via HTTP                                  ║
-║    {Colors.WHITE}[4] Fast Port Scan{Colors.CYAN}          - Quick port scan using Naabu                                            ║
-║    {Colors.WHITE}[5] Full Port Scan{Colors.CYAN}          - Comprehensive scan with Nmap                                           ║
-║    {Colors.WHITE}[6] URL Collection{Colors.CYAN}          - Gather URLs from multiple sources                                      ║
-║    {Colors.WHITE}[7] WAF Detection{Colors.CYAN}           - Identify Web Application Firewalls                                     ║
-║    {Colors.WHITE}[8] Vulnerability Scan{Colors.CYAN}      - Scan for vulnerabilities with Nuclei                                   ║
-║    {Colors.WHITE}[9] FULL AUTOMATED RECON{Colors.CYAN}    - Run complete reconnaissance sequence                                   ║
+║    {Colors.WHITE}[1] Subdomain Enumeration{Colors.CYAN}     - Discover subdomains using multiple tools                             ║
+║    {Colors.WHITE}[2] DNS Resolution{Colors.CYAN}            - Resolve DNS records for found subdomains                             ║
+║    {Colors.WHITE}[3] Alive Hosts Check{Colors.CYAN}         - Check which hosts are alive via HTTP                                 ║
+║    {Colors.WHITE}[4] Fast Port Scan{Colors.CYAN}            - Quick port scan using Naabu                                          ║
+║    {Colors.WHITE}[5] Full Port Scan{Colors.CYAN}            - Comprehensive scan with Nmap                                         ║
+║    {Colors.WHITE}[6] URL Collection{Colors.CYAN}            - Gather URLs from multiple sources                                    ║
+║    {Colors.WHITE}[7] WAF Detection{Colors.CYAN}             - Identify Web Application Firewalls                                   ║
+║    {Colors.WHITE}[8] Vulnerability Scan{Colors.CYAN}        - Scan for vulnerabilities with Nuclei                                 ║
+║    {Colors.WHITE}[9] FULL AUTOMATED RECON{Colors.CYAN}      - Run complete reconnaissance sequence                                 ║
 ║                                                                                                         ║   
-║    {Colors.WHITE}[C] Change Domain{Colors.CYAN}           - Set a different target domain                                          ║
-║    {Colors.WHITE}[I] Initialize Tools{Colors.CYAN}        - Check and install required tools                                       ║
-║    {Colors.WHITE}[H] Help{Colors.CYAN}                   - Show detailed help information                                          ║
-║    {Colors.WHITE}[Q] Quit{Colors.CYAN}                   - Exit the framework                                                      ║
+║    {Colors.WHITE}[C] Change Domain{Colors.CYAN}             - Set a different target domain                                        ║
+║    {Colors.WHITE}[I] Initialize Tools{Colors.CYAN}          - Check and install required tools                                     ║
+║    {Colors.WHITE}[H] Help{Colors.CYAN}                      - Show detailed help information                                       ║
+║    {Colors.WHITE}[Q] Quit{Colors.CYAN}                      - Exit the framework                                                   ║
 ║                                                                                                         ║
 ╚═════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 {Colors.RESET}"""

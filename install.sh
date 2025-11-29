@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# =============================================================================
+
 # ReconMaster Installation Script
 # Professional Reconnaissance Framework for Kali Linux
-# =============================================================================
+
 
 set -e
-
+INSTALL_DIR="$(pwd)"
 # Colors for beautiful output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -185,6 +185,8 @@ install_additional_tools() {
     # HTTPX is already installed via go install
     
     echo -e "${GREEN}[✔] Additional tools installed${NC}"
+
+    cd "$INSTALL_DIR"
 }
 
 # Setup Python environment
@@ -192,8 +194,8 @@ setup_python_env() {
     echo -e "${CYAN}[*] Setting up Python environment...${NC}"
     
     # Install Python packages
-    pip3 install --upgrade pip
-    pip3 install -U \
+    pip3 install --upgrade pip --break-system-packages || true
+    pip3 install --break-system-packages -U --ignore-installed \
         requests \
         urllib3 \
         beautifulsoup4 \
@@ -212,29 +214,29 @@ setup_python_env() {
 # Create ReconMaster directory structure
 setup_reconmaster() {
     echo -e "${CYAN}[*] Setting up ReconMaster...${NC}"
-    
-    # Copy ReconMaster to /usr/local/bin
-    if [[ -f "reconmaster.py" ]]; then
-        cp reconmaster.py /usr/local/bin/reconmaster
+
+    cd "$INSTALL_DIR"
+
+    # Use the saved install directory so cd doesn't break it
+    if [[ -f "$INSTALL_DIR/reconmaster.py" ]]; then
+
+        ln -sf "$INSTALL_DIR/reconmaster.py" /usr/local/bin/reconmaster
         chmod +x /usr/local/bin/reconmaster
+
         echo -e "${GREEN}[✔] ReconMaster installed to /usr/local/bin/reconmaster${NC}"
     else
-        echo -e "${RED}[!] reconmaster.py not found in current directory${NC}"
-        echo -e "${YELLOW}    Please run this script from the directory containing reconmaster.py${NC}"
+        echo -e "${RED}[!] reconmaster.py not found in: $INSTALL_DIR${NC}"
         exit 1
     fi
-    
-    # Create wordlists directory
+
     mkdir -p /usr/share/wordlists/reconmaster
-    
-    # Download some useful wordlists
+
     echo -e "${YELLOW}[*] Downloading wordlists...${NC}"
-    
-    # SecLists (if not already present)
+
     if [[ ! -d "/usr/share/seclists" ]]; then
         apt install seclists -y
     fi
-    
+
     echo -e "${GREEN}[✔] ReconMaster setup completed${NC}"
 }
 
