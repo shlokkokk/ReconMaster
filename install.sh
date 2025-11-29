@@ -190,10 +190,10 @@ install_additional_tools() {
 # Setup Python environment
 setup_python_env() {
     echo -e "${CYAN}[*] Setting up Python environment...${NC}"
-
-    pip3 install --upgrade pip --break-system-packages || true
-
-    pip3 install \
+    
+    # Install Python packages
+    pip3 install --upgrade pip
+    pip3 install -U \
         requests \
         urllib3 \
         beautifulsoup4 \
@@ -204,9 +204,8 @@ setup_python_env() {
         termcolor \
         pyfiglet \
         dnslib \
-        dnspython \
-        --break-system-packages || true
-
+        dnspython
+    
     echo -e "${GREEN}[✔] Python environment setup completed${NC}"
 }
 
@@ -220,7 +219,7 @@ setup_reconmaster() {
         chmod +x /usr/local/bin/reconmaster
         echo -e "${GREEN}[✔] ReconMaster installed to /usr/local/bin/reconmaster${NC}"
     else
-        echo -e "${RED}[!] reconmaster.py not found in current directory${NC}" 
+        echo -e "${RED}[!] reconmaster.py not found in current directory${NC}"
         echo -e "${YELLOW}    Please run this script from the directory containing reconmaster.py${NC}"
         exit 1
     fi
@@ -238,6 +237,7 @@ setup_reconmaster() {
     
     echo -e "${GREEN}[✔] ReconMaster setup completed${NC}"
 }
+
 
 # Test installation
 test_installation() {
