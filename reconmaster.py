@@ -591,8 +591,11 @@ commands will be provided.{Colors.RESET}
         if not hosts_to_scan:
             hosts_to_scan = [self.domain]
             print(f"{Colors.YELLOW}[*] Using fallback target: {hosts_to_scan[0]}{Colors.RESET}")
-
-
+        print()
+        print(f"{Colors.CYAN}[*] Note: Some domains use CDNs (Cloudflare, Akamai, etc.)")
+        print(f"{Colors.CYAN}    CDNs hide the real server IP, so Naabu might fail.")
+        print(f"{Colors.CYAN}    If we detect a CDN, we'll auto-switch to Nmap.{Colors.RESET}\n")
+        print()
         final_input = f"{self.output_dir}/ports_input.txt"
         with open(final_input, 'w') as f:
             for h in hosts_to_scan:
@@ -605,20 +608,37 @@ commands will be provided.{Colors.RESET}
         detected_provider = "Unknown"
 
         print(f"{Colors.YELLOW}[*] Checking for CDN...{Colors.RESET}")
+        print(f"{Colors.DIM}[*] Hosts to check: {hosts_to_scan}{Colors.RESET}")
 
         try:
             for host in hosts_to_scan:
-                cmd = f"dig +short {host}"
-                result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-                output = result.stdout.lower()  
-                for provider in cdn_providers:
-                    if provider in output:
-                        cdn_detected = True
-                        detected_provider = provider.capitalize()
-                        break
-        except:
-            pass
+                dig_cmd = f"dig +short {host}"
+                dig_res = subprocess.run(dig_cmd, shell=True, capture_output=True, text=True)
+                ip_list = dig_res.stdout.strip().split("\n")  
 
+                for ip in ip_list:
+                    if not ip.strip():
+                        continue
+                
+                    whois_cmd = f"whois {ip}"
+                    whois_res = subprocess.run(whois_cmd, shell=True, capture_output=True, text=True)
+                    whois_data = whois_res.stdout.lower()
+
+                    for provider in cdn_providers:
+                        if provider in whois_data:
+                            cdn_detected = True
+                            detected_provider = provider.capitalize()
+                            break
+                    
+                    if cdn_detected:
+                        break
+                if cdn_detected:
+                    break
+        except Exception as e:
+            print(f"{Colors.RED}[!] CDN check failed: {e}{Colors.RESET}")
+
+        if not cdn_detected:
+            print(f"{Colors.GREEN}[✔] No CDN detected{Colors.RESET}")
 
         
         # Check if Naabu is available, fallback to Nmap
