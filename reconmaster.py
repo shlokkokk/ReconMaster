@@ -157,7 +157,7 @@ class ReconMaster:
             return False
             
         # Validate domain format
-        domain_pattern = r'^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?\.[a-zA-Z]{2,}$'
+        domain_pattern = r'^(?!-)(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,}$'
         if not re.match(domain_pattern, domain):
             print(f"{Colors.RED}[!] Invalid domain format!{Colors.RESET}")
             return False
@@ -552,6 +552,25 @@ commands will be provided.{Colors.RESET}
             return
             
         alive_file = f"{self.output_dir}/alive.txt"
+        # --- Clean alive hosts before Naabu ---
+        try:
+            clean_hosts = []
+            with open(alive_file, 'r') as f:
+                for line in f:
+                    host = line.strip()
+                    host = host.replace("http://", "").replace("https://", "")
+                    host = host.split("/")[0]     # remove paths
+                    if host:
+                        clean_hosts.append(host)    
+            alive_clean = f"{self.output_dir}/alive_clean.txt"
+            with open(alive_clean, 'w') as f:
+                for h in sorted(set(clean_hosts)):
+                    f.write(h + "\n")
+
+            alive_file = alive_clean
+        except Exception as e:
+            print(f"{Colors.RED}[!] Failed to clean alive hosts: {e}{Colors.RESET}")
+
         if not os.path.exists(alive_file):
             # Fallback to subdomains file
             alive_file = f"{self.output_dir}/subdomains.txt"
@@ -573,8 +592,16 @@ commands will be provided.{Colors.RESET}
         output_file = f"{self.output_dir}/ports_fast.txt"
         
         if use_naabu:
-            # Naabu fast scan on common ports
-            cmd = f"naabu -l {alive_file} -p 1-1000 -rate 1000 -o {output_file}"
+            # Naabu fast scan (full port scan + improved stability)
+            cmd = (
+                f"naabu -l {alive_file} "
+                f"-p - "
+                f"-rate 2000 "
+                f"-host-retry 3 "
+                f"-no-color "
+                f"-o {output_file}"
+            )
+
             timeout = 300
         else:
             # Nmap fast scan
@@ -913,8 +940,8 @@ commands will be provided.{Colors.RESET}
                 print(f"{Colors.RED}[!] Template update failed, continuing...{Colors.RESET}")
         
         output_file = f"{self.output_dir}/nuclei_output.txt"
-        cmd = f"nuclei -l {alive_file} -t exposures/,misconfiguration/,vulnerabilities/ -severity low,medium,high,critical -o {output_file}"
-        
+        cmd = f"nuclei -l {alive_file} -severity low,medium,high,critical -o {output_file}"
+
         print(f"{Colors.YELLOW}[*] Running Nuclei vulnerability scan...{Colors.RESET}")
         print(f"{Colors.YELLOW}[!] This may take several minutes...{Colors.RESET}")
         
