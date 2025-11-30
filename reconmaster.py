@@ -554,7 +554,7 @@ commands will be provided.{Colors.RESET}
         alive_file = f"{self.output_dir}/alive.txt"
         #  Clean alive hosts before Naabu (ONLY if file exists)
         try:
-            if os.path.exists(alive_file):         
+            if os.path.exists(alive_file):
                 clean_hosts = []
                 with open(alive_file, 'r') as f:
                     for line in f:
@@ -590,18 +590,50 @@ commands will be provided.{Colors.RESET}
         # 3) If still nothing, fallback to main domain
         if not hosts_to_scan:
             hosts_to_scan = [self.domain]
+            print(f"{Colors.YELLOW}[*] Using fallback target: {hosts_to_scan[0]}{Colors.RESET}")
 
-        # Write final scan list (this ensures Naabu always has targets)
+
         final_input = f"{self.output_dir}/ports_input.txt"
         with open(final_input, 'w') as f:
             for h in hosts_to_scan:
                 f.write(h + "\n")
         alive_file = final_input
 
+        # --- CDN Detection ---
+        cdn_providers = ["cloudflare", "akamai", "imperva", "sucuri", "fastly", "cloudfront"]
+        cdn_detected = False
+        detected_provider = "Unknown"
+
+        print(f"{Colors.YELLOW}[*] Checking for CDN...{Colors.RESET}")
+
+        try:
+            for host in hosts_to_scan:
+                cmd = f"dig +short {host}"
+                result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+                output = result.stdout.lower()  
+                for provider in cdn_providers:
+                    if provider in output:
+                        cdn_detected = True
+                        detected_provider = provider.capitalize()
+                        break
+        except:
+            pass
+
+
         
         # Check if Naabu is available, fallback to Nmap
         use_naabu = self.tools_status.get('naabu', {}).get('installed')
         use_nmap = self.tools_status.get('nmap', {}).get('installed')
+        # If CDN detected, Naabu will fail → auto fallback to Nmap
+        if cdn_detected:
+            print(f"{Colors.RED}[!] CDN Detected: {detected_provider}{Colors.RESET}")
+            print(f"{Colors.RED}[!] Naabu cannot scan CDN IPs -- switching to Nmap.{Colors.RESET}")
+
+            if not use_nmap:
+                print(f"{Colors.RED}[!] Nmap is also missing! Cannot continue.{Colors.RESET}")
+                return
+            use_naabu = False  # disable Naabu
+
         
         if not use_naabu and not use_nmap:
             print(f"{Colors.RED}[!] No port scanning tools available!{Colors.RESET}")
@@ -619,7 +651,6 @@ commands will be provided.{Colors.RESET}
                 f"-p 1-65535 "
                 f"-rate 2000 "
                 f"-scan-all-ips "
-                f"-exclude-cdn "
                 f"-host-retry 3 "
                 f"-no-color "
                 f"-o {output_file}"
