@@ -552,21 +552,24 @@ commands will be provided.{Colors.RESET}
             return
             
         alive_file = f"{self.output_dir}/alive.txt"
-        # --- Clean alive hosts before Naabu ---
+        #  Clean alive hosts before Naabu (ONLY if file exists)
         try:
-            clean_hosts = []
-            with open(alive_file, 'r') as f:
-                for line in f:
-                    host = line.strip()
-                    host = re.sub(r'^https?://', '', host).split('/')[0]    # remove paths
-                    if host:
-                        clean_hosts.append(host)    
-            alive_clean = f"{self.output_dir}/alive_clean.txt"
-            with open(alive_clean, 'w') as f:
-                for h in sorted(set(clean_hosts)):
-                    f.write(h + "\n")
+            if os.path.exists(alive_file):         
+                clean_hosts = []
+                with open(alive_file, 'r') as f:
+                    for line in f:
+                        host = line.strip()
+                        host = re.sub(r'^https?://', '', host).split('/')[0]    # remove paths
+                        if host:
+                            clean_hosts.append(host)    
+                alive_clean = f"{self.output_dir}/alive_clean.txt"
+                with open(alive_clean, 'w') as f:
+                    for h in sorted(set(clean_hosts)):
+                        f.write(h + "\n")
 
-            alive_file = alive_clean
+                alive_file = alive_clean
+            else:
+                pass
         except Exception as e:
             print(f"{Colors.RED}[!] Failed to clean alive hosts: {e}{Colors.RESET}")
 
