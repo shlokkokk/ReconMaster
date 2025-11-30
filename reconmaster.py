@@ -386,7 +386,7 @@ commands will be provided.{Colors.RESET}
             print(f"{Colors.YELLOW}[*] Running Amass (passive)...{Colors.RESET}")
             amass_output = f"{self.output_dir}/amass_raw.txt"
             cmd = f"amass enum -passive -d {self.domain} -o {amass_output}"
-            if self.run_command(cmd, timeout=900):
+            if self.run_command(cmd, timeout=1800):
                 tools_used.append('Amass')
                 raw_files.append(amass_output)
                 print(f"{Colors.GREEN}[✔] Amass completed{Colors.RESET}")
@@ -429,7 +429,7 @@ commands will be provided.{Colors.RESET}
                     subdomain = line.strip().lower()
                     if subdomain and self.domain in subdomain:
                         # Basic validation
-                        if subdomain.replace('.', '').replace('-', '').isalnum():
+                        if re.match(r'^[a-zA-Z0-9.-]+$', subdomain):
                             subdomains.add(subdomain)
             
             with open(final_output, 'w') as f:
@@ -558,8 +558,7 @@ commands will be provided.{Colors.RESET}
             with open(alive_file, 'r') as f:
                 for line in f:
                     host = line.strip()
-                    host = host.replace("http://", "").replace("https://", "")
-                    host = host.split("/")[0]     # remove paths
+                    host = re.sub(r'^https?://', '', host).split('/')[0]    # remove paths
                     if host:
                         clean_hosts.append(host)    
             alive_clean = f"{self.output_dir}/alive_clean.txt"
@@ -571,12 +570,31 @@ commands will be provided.{Colors.RESET}
         except Exception as e:
             print(f"{Colors.RED}[!] Failed to clean alive hosts: {e}{Colors.RESET}")
 
-        if not os.path.exists(alive_file):
-            # Fallback to subdomains file
-            alive_file = f"{self.output_dir}/subdomains.txt"
-            if not os.path.exists(alive_file):
-                print(f"{Colors.RED}[!] No hosts to scan! Run subdomain enumeration first.{Colors.RESET}")
-                return
+        # --- Final fallback logic ---
+        hosts_to_scan = []
+
+        # 1) Try alive hosts
+        if os.path.exists(alive_file):
+            with open(alive_file) as f:
+                hosts_to_scan = [h.strip() for h in f if h.strip()]
+
+        # 2) If no alive hosts, try subdomains
+        if not hosts_to_scan:
+            sub_file = f"{self.output_dir}/subdomains.txt"
+            if os.path.exists(sub_file):
+                with open(sub_file) as f:
+                    hosts_to_scan = [h.strip() for h in f if h.strip()] 
+        # 3) If still nothing, fallback to main domain
+        if not hosts_to_scan:
+            hosts_to_scan = [self.domain]
+
+        # Write final scan list (this ensures Naabu always has targets)
+        final_input = f"{self.output_dir}/ports_input.txt"
+        with open(final_input, 'w') as f:
+            for h in hosts_to_scan:
+                f.write(h + "\n")
+        alive_file = final_input
+
         
         # Check if Naabu is available, fallback to Nmap
         use_naabu = self.tools_status.get('naabu', {}).get('installed')
@@ -595,12 +613,15 @@ commands will be provided.{Colors.RESET}
             # Naabu fast scan (full port scan + improved stability)
             cmd = (
                 f"naabu -l {alive_file} "
-                f"-p - "
+                f"-p 1-65535 "
                 f"-rate 2000 "
+                f"-scan-all-ips "
+                f"-exclude-cdn "
                 f"-host-retry 3 "
                 f"-no-color "
                 f"-o {output_file}"
             )
+
 
             timeout = 300
         else:
@@ -666,15 +687,34 @@ commands will be provided.{Colors.RESET}
             print(f"{Colors.RED}[!] Nmap not installed! Install with: sudo apt install nmap{Colors.RESET}")
             return
         
-        alive_file = f"{self.output_dir}/alive.txt"
-        if not os.path.exists(alive_file):
-            alive_file = f"{self.output_dir}/subdomains.txt"
-            if not os.path.exists(alive_file):
-                print(f"{Colors.RED}[!] No hosts to scan! Run subdomain enumeration first.{Colors.RESET}")
-                return
-        
         print(f"\n{Colors.CYAN}{Colors.BOLD}[*] Starting Full Port Scan with Nmap...{Colors.RESET}\n")
         print(f"{Colors.YELLOW}[!] This may take a while. Press Ctrl+C to skip.{Colors.RESET}\n")
+
+        hosts_to_scan = []
+
+        alive_file_original = f"{self.output_dir}/alive.txt"
+
+        # 1) Try alive hosts
+        if os.path.exists(alive_file_original):
+            with open(alive_file_original) as f:
+                hosts_to_scan = [h.strip() for h in f if h.strip()]
+
+        # 2) If empty, try subdomains
+        if not hosts_to_scan:
+            sub_file = f"{self.output_dir}/subdomains.txt"
+            if os.path.exists(sub_file):
+                with open(sub_file) as f:
+                    hosts_to_scan = [h.strip() for h in f if h.strip()]
+        # 3) If still empty, fallback to main domain
+        if not hosts_to_scan:
+            hosts_to_scan = [self.domain]
+
+        # Write final input file for Nmap
+        final_input = f"{self.output_dir}/ports_full_input.txt"
+        with open(final_input, 'w') as f:
+            for h in hosts_to_scan:
+                f.write(h + "\n")
+        alive_file = final_input
         
         output_file = f"{self.output_dir}/ports_full.txt"
         cmd = f"nmap -iL {alive_file} -p- -sV -sC -O --open -T4 -oA {output_file.replace('.txt', '')}"
@@ -834,10 +874,33 @@ commands will be provided.{Colors.RESET}
             print(f"{Colors.RED}[!] Please set up domain first!{Colors.RESET}")
             return
             
+        # Load hosts with fallback (alive → subs → domain)
+        hosts = []
+
         alive_file = f"{self.output_dir}/alive.txt"
-        if not os.path.exists(alive_file):
-            print(f"{Colors.RED}[!] No alive hosts found! Run alive hosts check first.{Colors.RESET}")
-            return
+
+        # 1) Try alive hosts
+        if os.path.exists(alive_file):
+            try:
+                with open(alive_file) as f:
+                    hosts = [h.strip() for h in f if h.strip()]
+            except:
+                hosts = []
+
+        # 2) If empty, try subdomains
+        if not hosts:
+            sub_file = f"{self.output_dir}/subdomains.txt"
+            if os.path.exists(sub_file):
+                try:
+                    with open(sub_file) as f:
+                        hosts = [h.strip() for h in f if h.strip()]
+                except:
+                    hosts = []
+
+        # 3) If still empty → use main domain
+        if not hosts:
+            hosts = [self.domain]
+
         
         if not self.tools_status.get('wafw00f', {}).get('installed'):
             print(f"{Colors.RED}[!] Wafw00f not installed! Install with: sudo apt install wafw00f{Colors.RESET}")
@@ -847,20 +910,13 @@ commands will be provided.{Colors.RESET}
         
         output_file = f"{self.output_dir}/waf_summary.txt"
         
-        # Read alive hosts
-        try:
-            with open(alive_file, 'r') as f:
-                hosts = [line.strip() for line in f if line.strip()]
-        except Exception as e:
-            print(f"{Colors.RED}[!] Error reading alive hosts: {e}{Colors.RESET}")
-            return
-        
         results = []
         total_hosts = len(hosts)
         
         print(f"{Colors.YELLOW}[*] Testing {total_hosts} hosts for WAF...{Colors.RESET}")
         
         for i, host in enumerate(hosts):
+            host = re.sub(r'^https?://', '', host).split('/')[0]
             print(f"  Progress: {i+1}/{total_hosts} - Testing {host}", end='\r')
             
             cmd = f"wafw00f {host}"
@@ -945,7 +1001,7 @@ commands will be provided.{Colors.RESET}
         print(f"{Colors.YELLOW}[*] Running Nuclei vulnerability scan...{Colors.RESET}")
         print(f"{Colors.YELLOW}[!] This may take several minutes...{Colors.RESET}")
         
-        if self.run_command(cmd, timeout=1800):  # 30 minutes
+        if self.run_command(cmd, timeout=3600):  # 60 minutes
             # Process results
             try:
                 with open(output_file, 'r') as f:
