@@ -9,6 +9,8 @@
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """
 
+from email.mime import base
+from itertools import count
 import os
 import sys
 import subprocess
@@ -20,6 +22,7 @@ from pathlib import Path
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
+from unittest import result
 
 class Colors:
     """Professional color scheme for beautiful terminal output"""
@@ -78,7 +81,7 @@ class ReconMaster:
 ║ ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝  ║
 ║                                                                                                  ║ 
 ║                                                                                                  ║
-║                  {Colors.WHITE}Professional Reconnaissance Framework v1.0{Colors.CYAN}                                      ║ 
+║                  {Colors.WHITE}Professional Reconnaissance Framework v2.0{Colors.CYAN}                                      ║ 
 ║                        {Colors.WHITE}For Kali Linux Bug Bounty Hunters{Colors.CYAN}                                         ║                                           
 ╚══════════════════════════════════════════════════════════════════════════════════════════════════╝
 
@@ -86,40 +89,35 @@ class ReconMaster:
 """
         print(banner)
         
+    
     def check_tool_installation(self, tool_name, install_command=None):
-        """Check if a tool is installed and provide installation guidance"""
-        try:
-            subprocess.run([tool_name, '--version'], capture_output=True, check=True)
-            self.tools_status[tool_name] = {'installed': True, 'path': tool_name}
-            return True
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            # Try alternative names
-            alternatives = {
-                'subfinder': ['subfinder', 'github.com/projectdiscovery/subfinder/v2/cmd/subfinder'],
-                'naabu': ['naabu', 'github.com/projectdiscovery/naabu/v2/cmd/naabu'],
-                'httpx': ['httpx', 'github.com/projectdiscovery/httpx/cmd/httpx'],
-                'dnsx': ['dnsx', 'github.com/projectdiscovery/dnsx/cmd/dnsx'],
-                'katana': ['katana', 'github.com/projectdiscovery/katana/cmd/katana'],
-                'nuclei': ['nuclei', 'github.com/projectdiscovery/nuclei/v3/cmd/nuclei']
-            }
-            
-            alt_names = alternatives.get(tool_name, [tool_name])
-            for alt_name in alt_names:
-                try:
-                    subprocess.run([alt_name, '--version'], capture_output=True, check=True)
-                    self.tools_status[tool_name] = {'installed': True, 'path': alt_name}
-                    return True
-                except (subprocess.CalledProcessError, FileNotFoundError):
-                    continue
-            
+        """
+        Check if a tool is installed.
+
+        - For normal CLI tools: use shutil.which()
+        - For special tools (ParamSpider, Arjun, etc.): we handle them separately in initialize_tools()
+        """
+        # Simple PATH-based check
+        path = shutil.which(tool_name)
+
+        if path:
             self.tools_status[tool_name] = {
-                'installed': False, 
-                'install_command': install_command or f'sudo apt install {tool_name}'
+                'installed': True,
+                'path': path
             }
-            return False
+            return True
+
+        # If not found, record as missing
+        self.tools_status[tool_name] = {
+            'installed': False,
+            'install_command': install_command or f'sudo apt install {tool_name}'
+        }
+        return False
     
     def initialize_tools(self):
         """Initialize and check all required tools"""
+
+    # CLI-based tools that MUST exist in PATH
         tools_to_check = [
             ('subfinder', 'go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest'),
             ('amass', 'sudo apt install amass'),
@@ -132,17 +130,56 @@ class ReconMaster:
             ('gau', 'go install github.com/lc/gau@latest'),
             ('waybackurls', 'go install github.com/tomnomnom/waybackurls@latest'),
             ('wafw00f', 'sudo apt install wafw00f'),
-            ('nuclei', 'go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest')
+            ('whatweb', 'sudo apt install whatweb'),
+            ('sqlmap', 'sudo apt install sqlmap'),
+            ('nuclei', 'go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest'),
+            ('hakrawler', 'go install github.com/hakluke/hakrawler@latest'),
+            ('ffuf', 'go install github.com/ffuf/ffuf@latest'),
+            
+            ('dalfox', 'go install github.com/hahwul/dalfox/v2@latest'),
+            ('asnmap', 'go install github.com/projectdiscovery/asnmap/cmd/asnmap@latest'),
+            ('gowitness', 'go install github.com/sensepost/gowitness@latest'),
+            ('gf', 'go install github.com/tomnomnom/gf@latest'),
+
+        
+            ('massdns', 'binary expected at /usr/local/bin/massdns'),
         ]
-        
+
         print(f"\n{Colors.CYAN}{Colors.BOLD}[*] Checking Tool Installation Status...{Colors.RESET}\n")
-        
+
+        # 2️ Check CLI tools using check_tool_installation()
         for tool, install_cmd in tools_to_check:
             status = "✔" if self.check_tool_installation(tool, install_cmd) else "✘"
             color = Colors.GREEN if status == "✔" else Colors.RED
             print(f"  {color}[{status}] {tool.capitalize()}{Colors.RESET}")
-            
+        # 3️ Tools that DO NOT have CLI but exist as python files in /opt
+        special_tools = {
+            'paramspider': '/opt/recontools/ParamSpider/paramspider.py',
+            'arjun': '/opt/recontools/Arjun/arjun.py',
+            'xsstrike': '/opt/recontools/XSStrike/xsstrike.py',
+            'smuggler': '/opt/recontools/smuggler/smuggler.py',
+            'linkfinder': '/opt/recontools/LinkFinder/linkfinder.py',
+            'subzy': shutil.which('subzy') or '/usr/local/bin/subzy',  # symlink created by install.sh
+            'kr': shutil.which('kr') or '/usr/local/bin/kr',
+        }
+
+        print(f"\n{Colors.CYAN}{Colors.BOLD}[*] Checking Python/Opt-based Tools...{Colors.RESET}\n")
+
+        for name, path in special_tools.items():
+
+            exists = os.path.exists(path) if isinstance(path, str) else bool(path)
+
+            self.tools_status[name] = {
+                'installed': exists,
+                'path': path,
+                'install_command': 'Installed via install.sh in /opt/recontools'
+            }
+            status = "✔" if exists else "✘"
+            color = Colors.GREEN if exists else Colors.RED
+            print(f"  {color}[{status}] {name.capitalize()}{Colors.RESET}")
+
         print(f"\n{Colors.YELLOW}[!] Install missing tools using the suggested commands above{Colors.RESET}\n")
+
     
     def setup_domain(self):
         """Setup domain and create output directory"""
@@ -157,7 +194,7 @@ class ReconMaster:
             return False
             
         # Validate domain format
-        domain_pattern = r'^(?!-)(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,}$'
+        domain_pattern = r'^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
         if not re.match(domain_pattern, domain):
             print(f"{Colors.RED}[!] Invalid domain format!{Colors.RESET}")
             return False
@@ -225,16 +262,28 @@ class ReconMaster:
 ║                                         RECONMASTER MAIN MENU                                           ║
 ╠═════════════════════════════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                                         ║
-║    {Colors.WHITE}[1] Subdomain Enumeration{Colors.CYAN}     - Discover subdomains using multiple tools                             ║
-║    {Colors.WHITE}[2] DNS Resolution{Colors.CYAN}            - Resolve DNS records for found subdomains                             ║
-║    {Colors.WHITE}[3] Alive Hosts Check{Colors.CYAN}         - Check which hosts are alive via HTTP                                 ║
-║    {Colors.WHITE}[4] Fast Port Scan{Colors.CYAN}            - Quick port scan using Naabu                                          ║
-║    {Colors.WHITE}[5] Full Port Scan{Colors.CYAN}            - Comprehensive scan with Nmap                                         ║
-║    {Colors.WHITE}[6] URL Collection{Colors.CYAN}            - Gather URLs from multiple sources                                    ║
-║    {Colors.WHITE}[7] WAF Detection{Colors.CYAN}             - Identify Web Application Firewalls                                   ║
-║    {Colors.WHITE}[8] Vulnerability Scan{Colors.CYAN}        - Scan for vulnerabilities with Nuclei                                 ║
-║    {Colors.WHITE}[9] FULL AUTOMATED RECON{Colors.CYAN}      - Run complete reconnaissance sequence                                 ║
-║                                                                                                         ║   
+║    {Colors.WHITE}[1] Subdomain Enumeration{Colors.CYAN}      - Discover subdomains using multiple tools                            ║
+║    {Colors.WHITE}[2] DNS Resolution{Colors.CYAN}             - Resolve DNS records for found subdomains                            ║
+║    {Colors.WHITE}[3] Alive Hosts Check{Colors.CYAN}          - Check which hosts are alive via HTTP                                ║
+║    {Colors.WHITE}[4] Fast Port Scan{Colors.CYAN}             - Quick port scan using Naabu                                         ║
+║    {Colors.WHITE}[5] Full Port Scan{Colors.CYAN}             - Comprehensive scan with Nmap                                        ║
+║    {Colors.WHITE}[6] URL Collection{Colors.CYAN}             - Gather URLs from multiple sources                                   ║
+║    {Colors.WHITE}[7] WAF Detection{Colors.CYAN}              - Identify Web Application Firewalls                                  ║
+║    {Colors.WHITE}[8] Vulnerability Scan{Colors.CYAN}         - Scan for vulnerabilities with Nuclei                                ║
+║    {Colors.WHITE}[9] FULL AUTOMATED RECON{Colors.CYAN}       - Run complete reconnaissance sequence                                ║
+║    {Colors.WHITE}[10] Parameter Discovery{Colors.CYAN}       - ParamSpider + Arjun for hidden parameters                           ║
+║    {Colors.WHITE}[11] JS Endpoint Extraction{Colors.CYAN}    - LinkFinder + JS parsing                                             ║
+║    {Colors.WHITE}[12] Directory Fuzzing{Colors.CYAN}         - FFUF-based directory bruteforce                                     ║
+║    {Colors.WHITE}[13] API Fuzzing{Colors.CYAN}               - API endpoint fuzzing with Kiterunner                                ║
+║    {Colors.WHITE}[14] Subdomain Takeover Check{Colors.CYAN}  - Detect vulnerable subdomains (Subzy)                                ║
+║    {Colors.WHITE}[15] Advanced URL Enum{Colors.CYAN}         - Deep crawling using Hakrawler                                       ║
+║    {Colors.WHITE}[16] Screenshot Capture{Colors.CYAN}        - Take screenshots of alive hosts (Gowitness)                         ║
+║    {Colors.WHITE}[17] DNS Bruteforce{Colors.CYAN}            - Bruteforce DNS with MassDNS                                         ║
+║    {Colors.WHITE}[18] GF Filters{Colors.CYAN}                - Detect XSS, SQLi, LFI, SSRF, RCE patterns                           ║
+║    {Colors.WHITE}[19] Tech Scan{Colors.CYAN}                 - Fingerprint technologies using WhatWeb                              ║ 
+║    {Colors.WHITE}[20] SQLi Scan{Colors.CYAN}                 - Auto SQL Injection detection using SQLMap                           ║                                                                                                                                    
+║    {Colors.WHITE}[D] Deep Recon Mode{Colors.CYAN}            - Run all advanced modules together                                   ║                                                                                    
+║                                                                                                         ║
 ║    {Colors.WHITE}[C] Change Domain{Colors.CYAN}             - Set a different target domain                                        ║
 ║    {Colors.WHITE}[I] Initialize Tools{Colors.CYAN}          - Check and install required tools                                     ║
 ║    {Colors.WHITE}[H] Help{Colors.CYAN}                      - Show detailed help information                                       ║
@@ -263,59 +312,116 @@ class ReconMaster:
     security tools into a single, powerful interface for bug bounty hunting and
     penetration testing.
 
-{Colors.WHITE}{Colors.BOLD}WORKFLOW:{Colors.RESET}
+{Colors.WHITE}{Colors.BOLD}CORE WORKFLOW (MENU 1 - 9):{Colors.RESET}
     1. {Colors.CYAN}Set Target Domain{Colors.RESET} - Configure your target
-    2. {Colors.CYAN}Run Subdomain Enumeration{Colors.RESET} - Discover subdomains
-    3. {Colors.CYAN}DNS Resolution{Colors.RESET} - Resolve DNS records
-    4. {Colors.CYAN}Alive Hosts Check{Colors.RESET} - Find live targets
-    5. {Colors.CYAN}Port Scanning{Colors.RESET} - Discover open services
-    6. {Colors.CYAN}URL Collection{Colors.RESET} - Gather endpoint URLs
-    7. {Colors.CYAN}WAF Detection{Colors.RESET} - Identify protection systems
-    8. {Colors.CYAN}Vulnerability Scanning{Colors.RESET} - Find security issues
-    9. {Colors.CYAN}Review Summary{Colors.RESET} - Analyze results
+    2. {Colors.CYAN}Run Subdomain Enumeration (1){Colors.RESET} - Discover subdomains
+    3. {Colors.CYAN}DNS Resolution (2){Colors.RESET} - Resolve DNS records
+    4. {Colors.CYAN}Alive Hosts Check (3){Colors.RESET} - Find live targets
+    5. {Colors.CYAN}Port Scanning (4 & 5){Colors.RESET} - Discover open services
+    6. {Colors.CYAN}URL Collection (6){Colors.RESET} - Gather endpoint URLs
+    7. {Colors.CYAN}WAF Detection (7){Colors.RESET} - Identify protection systems
+    8. {Colors.CYAN}Vulnerability Scanning (8){Colors.RESET} - Find security issues
+    9. {Colors.CYAN}Full Automated Recon (9){Colors.RESET} - Run core chain 1-8
 
-{Colors.WHITE}{Colors.BOLD}OUTPUT STRUCTURE:{Colors.RESET}
+{Colors.WHITE}{Colors.BOLD}ADVANCED MODULES (MENU 10 - 20, D):{Colors.RESET}
+    10. {Colors.CYAN}Parameter Discovery{Colors.RESET}         - ParamSpider + Arjun on URLs
+    11. {Colors.CYAN}JS Endpoint Extraction{Colors.RESET}      - LinkFinder + custom secret finder
+    12. {Colors.CYAN}Directory Fuzzing{Colors.RESET}           - FFUF with recursion and smart filters
+    13. {Colors.CYAN}API Fuzzing{Colors.RESET}                 - Kiterunner (kr) on alive hosts
+    14. {Colors.CYAN}Subdomain Takeover Check{Colors.RESET}    - Subzy + CNAME pattern check
+    15. {Colors.CYAN}Advanced URL Enum{Colors.RESET}           - Hakrawler deep crawling
+    16. {Colors.CYAN}Screenshot Capture{Colors.RESET}          - Gowitness on alive hosts
+    17. {Colors.CYAN}DNS Bruteforce{Colors.RESET}              - MassDNS + merge into subdomains
+    18. {Colors.CYAN}GF Filters{Colors.RESET}                  - gf for XSS, SQLi, LFI, SSRF, RCE, Redirect
+    19. {Colors.CYAN}Tech Scan{Colors.RESET}                   - WhatWeb technology fingerprinting
+    20. {Colors.CYAN}SQLi Scan{Colors.RESET}                   - SQLMap on parameterized URLs
+
+    D.  {Colors.CYAN}Deep Recon Mode{Colors.RESET}
+        Full advanced chain:
+        URLs -> Advanced URLs -> JS endpoints -> Params -> Dir fuzzing ->
+        API fuzzing -> Takeover -> GF filters -> Tech scan -> SQL scan ->
+        Screenshots -> DNS bruteforce
+
+{Colors.WHITE}{Colors.BOLD}OUTPUT STRUCTURE (MAIN):{Colors.RESET}
     output-domain.com/
-    ├── subdomains_raw.txt      # Raw subdomain results
-    ├── subdomains.txt          # Cleaned subdomain list
-    ├── dns_resolved.txt        # DNS resolution results
-    ├── alive.txt               # Live hosts
-    ├── ports_fast.txt          # Quick port scan results
-    ├── ports_full.txt          # Detailed port scan results
-    ├── urls.txt                # Collected URLs
-    ├── waf_summary.txt         # WAF detection results
-    ├── nuclei_output.txt       # Vulnerability scan results
-    ├── summary.txt             # Complete recon summary
-    └── logs/                   # Execution logs
+    ├── subdomains_raw.txt          # Raw subdomain results (merged)
+    ├── subdomains.txt              # Cleaned subdomain list
+    ├── dns_resolved.txt            # DNS resolution results
+    ├── alive.txt                   # Live hosts (httpx)
+    ├── ports_fast.txt              # Fast port scan results (Naabu/Nmap)
+    ├── ports_full.txt              # Full service scan (Nmap)
+    ├── urls.txt                    # Base collected URLs (Katana/Gau/Wayback)
+    ├── urls_final.txt              # All merged URLs (base + JS + advanced)
+    ├── waf_summary.txt             # WAF detection results
+    ├── nuclei_output.txt           # Vulnerability scan results (Nuclei)
+    ├── summary.txt                 # ReconMaster summary report
+    ├── logs/                       # Execution logs
 
-{Colors.WHITE}{Colors.BOLD}TOOL REQUIREMENTS:{Colors.RESET}
-    • Subfinder      - Subdomain discovery
-    • Amass          - Passive subdomain enumeration
-    • Assetfinder    - Alternative subdomain finder
-    • DNSx           - DNS resolution tool
-    • HTTPx          - HTTP probing tool
-    • Naabu          - Fast port scanner
-    • Nmap           - Network mapper
-    • Katana         - Web crawler
-    • Gau            - Get All URLs
-    • Waybackurls    - Wayback Machine URLs
-    • Wafw00f        - WAF detection
-    • Nuclei         - Vulnerability scanner
+{Colors.WHITE}{Colors.BOLD}OUTPUT STRUCTURE (ADVANCED MODULES):{Colors.RESET}
+    ├── js_endpoints/               # JS URLs, endpoints, secrets
+    │   ├── js_raw_urls.txt
+    │   ├── js_files/
+    │   ├── endpoints_raw.txt
+    │   ├── endpoints.txt           # Clean JS endpoints
+    │   └── secrets.txt             # Potential API keys/tokens
+    ├── parameters/                 # ParamSpider + Arjun results
+    │   ├── paramspider.txt
+    │   ├── arjun.json
+    │   └── parameters_final.txt
+    ├── fuzzing/                    # FFUF directory fuzzing per host
+    ├── api_fuzzing/                # Kiterunner (kr) API endpoints
+    ├── takeover/                   # Subzy + CNAME fallback findings
+    ├── screenshots/                # Gowitness screenshots
+    ├── dns_bruteforce/             # MassDNS raw + bruteforced subdomains
+    ├── advanced_urls/              # Hakrawler deep URLs
+    ├── gf/                         # gf filtered URLs (xss, sqli, lfi, ssrf, rce, redirect)
+    ├── tech_scan/                  # WhatWeb technology fingerprinting
+    └── sqlmap/                     # SQLMap scan outputs
+
+{Colors.WHITE}{Colors.BOLD}TOOL REQUIREMENTS (CORE):{Colors.RESET}
+    • subfinder       - Subdomain discovery
+    • amass           - Passive subdomain enumeration
+    • assetfinder     - Alternative subdomain finder
+    • dnsx            - DNS resolution
+    • httpx           - HTTP probing (alive hosts)
+    • naabu           - Fast port scanner
+    • nmap            - Network mapper / detailed scan
+    • katana          - Web crawler
+    • gau             - Get All URLs (past data)
+    • waybackurls     - Wayback Machine URLs
+    • wafw00f         - WAF detection
+    • nuclei          - Vulnerability scanner
+
+{Colors.WHITE}{Colors.BOLD}TOOL REQUIREMENTS (ADVANCED):{Colors.RESET}
+    • paramspider     - Parameter discovery from URLs
+    • arjun           - Parameter discovery (wordlist-based)
+    • ffuf            - Directory fuzzing
+    • kr (kiterunner) - API fuzzing
+    • subzy           - Subdomain takeover detection
+    • hakrawler       - Deep URL enumeration
+    • gowitness       - HTTP screenshot capture
+    • massdns         - High performance DNS bruteforce
+    • gf              - Filter URLs for XSS/SQLi/LFI/SSRF/RCE/Redirect
+    • whatweb         - Technology fingerprinting
+    • sqlmap          - SQL injection testing
+    • linkfinder      - JS endpoint extraction
 
 {Colors.YELLOW}Missing tools will be automatically detected and installation
-commands will be provided.{Colors.RESET}
+commands will be suggested in the tool check module.{Colors.RESET}
 
 {Colors.WHITE}{Colors.BOLD}TIPS:{Colors.RESET}
-    • Run tools in sequence for best results
-    • Use Full Automated Recon for complete workflow
-    • Check the summary.txt file after each scan
-    • Monitor logs/ directory for detailed execution info
-    • Results are automatically deduplicated and cleaned
+    • Run tools in logical sequence for best results (1 -> 2 -> 3 -> 4/5 -> 6 -> 7 -> 8).
+    • Use Full Automated Recon (9) for a clean one-shot recon of the target.
+    • Use Deep Recon Mode (D) once core recon is done for deeper hunting.
+    • Check summary.txt after a full recon to see overall stats and next steps.
+    • Monitor logs/ directory if something crashes or behaves unexpectedly.
+    • Results are automatically deduplicated and merged wherever possible.
 
 {Colors.CYAN}Press Enter to return to main menu...{Colors.RESET}
 """
         print(help_text)
         input()
+
     
     def suggest_next_steps(self, completed_task):
         """Intelligently suggest next steps based on completed task"""
@@ -501,49 +607,76 @@ commands will be provided.{Colors.RESET}
             print(f"{Colors.RED}[!] DNS resolution failed{Colors.RESET}")
     
     def run_alive_hosts_check(self):
-        """Check which hosts are alive using HTTPx"""
+        """Check which hosts are alive using HTTPx (JSON safe parser)"""
         if not self.setup_complete:
             print(f"{Colors.RED}[!] Please set up domain first!{Colors.RESET}")
             return
-            
+        
         subdomains_file = f"{self.output_dir}/subdomains.txt"
         if not os.path.exists(subdomains_file):
             print(f"{Colors.RED}[!] No subdomains found! Run subdomain enumeration first.{Colors.RESET}")
             return
-        
+    
         if not self.tools_status.get('httpx', {}).get('installed'):
             print(f"{Colors.RED}[!] HTTPx not installed! Install with: go install github.com/projectdiscovery/httpx/cmd/httpx@latest{Colors.RESET}")
             return
-        
+    
         print(f"\n{Colors.CYAN}{Colors.BOLD}[*] Checking Alive Hosts...{Colors.RESET}\n")
-        
-        output_file = f"{self.output_dir}/alive.txt"
-        cmd = f"httpx -l {subdomains_file} -ports 80,443,8080,8443,3000,5000,8000,9000 -timeout 10 -o {output_file}"
-        
-        if self.run_command(cmd, timeout=600):
-            # Count results
-            try:
-                with open(output_file, 'r') as f:
-                    lines = f.readlines()
-                    count = len(lines)
-                
-                print(f"{Colors.GREEN}[✔] Alive hosts check completed{Colors.RESET}")
-                print(f"{Colors.GREEN}[✔] Found {count} alive hosts{Colors.RESET}")
-                
-                # Display sample results
-                print(f"\n{Colors.CYAN}[*] Sample alive hosts:{Colors.RESET}")
-                for line in lines[:5]:
-                    print(f"  {Colors.WHITE}• {line.strip()}{Colors.RESET}")
-                if count > 5:
-                    print(f"  {Colors.DIM}... and {count-5} more{Colors.RESET}")
-                
-                self.results['alive_hosts'] = count
-                self.suggest_next_steps('alive_hosts')
-                
-            except Exception as e:
-                print(f"{Colors.RED}[!] Error reading alive hosts results: {e}{Colors.RESET}")
-        else:
-            print(f"{Colors.RED}[!] Alive hosts check failed{Colors.RESET}")
+
+        # Use JSON output to avoid messy text output with metadata
+        raw_httpx_output = f"{self.output_dir}/httpx_raw.json"
+
+        cmd = (
+            f"httpx -l {subdomains_file} "
+            f"-sc -title -ip -cdn -json "
+            f"-threads 50 "
+            f"-timeout 10 "
+            f"-o {raw_httpx_output}"
+        )
+
+        if not self.run_command(cmd, timeout=600):
+            print(f"{Colors.RED}[!] HTTPx scan failed{Colors.RESET}")
+            return
+
+        # Parse JSON results safely
+        clean_hosts = []
+        try:
+            with open(raw_httpx_output, "r") as f:
+                for line in f:
+                    try:
+                        j = json.loads(line)
+                        clean_hosts.append(j["url"])
+                    except:
+                        continue
+        except Exception as e:
+            print(f"{Colors.RED}[!] Failed parsing HTTPx JSON: {e}{Colors.RESET}")
+            return
+        # Save clean alive hosts
+        alive_file = f"{self.output_dir}/alive.txt"
+        try:
+            with open(alive_file, "w") as f:
+                for h in sorted(set(clean_hosts)):
+                    f.write(h + "\n")
+        except Exception as e:
+            print(f"{Colors.RED}[!] Failed writing alive hosts: {e}{Colors.RESET}")
+            return
+        count = len(clean_hosts)
+        if count == 0:
+            print(f"{Colors.RED}[!] No alive hosts detected!{Colors.RESET}")
+            print(f"{Colors.YELLOW}[*] Falling back to main domain during port scan...{Colors.RESET}")
+
+
+        print(f"{Colors.GREEN}[✔] Alive hosts check completed{Colors.RESET}")
+        print(f"{Colors.GREEN}[✔] Found {count} alive hosts{Colors.RESET}")
+        # Sample output
+        print(f"\n{Colors.CYAN}[*] Sample alive hosts:{Colors.RESET}")
+        for h in clean_hosts[:5]:
+            print(f"  {Colors.WHITE}• {h}{Colors.RESET}")
+        if count > 5:
+            print(f"  {Colors.DIM}... and {count-5} more{Colors.RESET}")
+        self.results['alive_hosts'] = count
+        self.suggest_next_steps('alive_hosts')
+
     
     def run_fast_port_scan(self):
         """Run fast port scan using Naabu"""
@@ -552,44 +685,67 @@ commands will be provided.{Colors.RESET}
             return
             
         alive_file = f"{self.output_dir}/alive.txt"
-        #  Clean alive hosts before Naabu (ONLY if file exists)
-        try:
-            if os.path.exists(alive_file):
-                clean_hosts = []
-                with open(alive_file, 'r') as f:
+
+        # Re-clean using HTTPX JSON to ensure valid URLs (avoids [200 OK] garbage)
+        if os.path.exists(alive_file):
+            print(f"{Colors.YELLOW}[*] Re-validating alive hosts using HTTPX JSON...{Colors.RESET}")
+
+            httpx_recheck = f"{self.output_dir}/alive_recheck.json"
+            cmd = (
+                f"httpx -l {alive_file} "
+                f"-sc -title -ip -cdn -json "
+                f"-threads 30 "
+                f"-timeout 10 "
+                f"-o {httpx_recheck}"
+            )
+            self.run_command(cmd, timeout=300)
+
+            clean_hosts = []
+            try:
+                with open(httpx_recheck, "r") as f:
                     for line in f:
-                        host = line.strip()
-                        host = re.sub(r'^https?://', '', host).split('/')[0]    # remove paths
-                        if host:
-                            clean_hosts.append(host)    
-                alive_clean = f"{self.output_dir}/alive_clean.txt"
-                with open(alive_clean, 'w') as f:
-                    for h in sorted(set(clean_hosts)):
-                        f.write(h + "\n")
+                        try:
+                            j = json.loads(line)
+                            clean_hosts.append(j["url"])
+                        except:
+                            continue
+            except:
+                clean_hosts = []    
+            alive_clean = f"{self.output_dir}/alive_clean.txt"
+            with open(alive_clean, "w") as f:
+                for u in sorted(set(clean_hosts)):
+                    f.write(u + "\n")
 
-                alive_file = alive_clean
-            else:
-                pass
-        except Exception as e:
-            print(f"{Colors.RED}[!] Failed to clean alive hosts: {e}{Colors.RESET}")
+            alive_file = alive_clean
 
-        # --- Final fallback logic ---
+        #  Final fallback logic 
         hosts_to_scan = []
 
         # 1) Try alive hosts
         if os.path.exists(alive_file):
             with open(alive_file) as f:
-                hosts_to_scan = [h.strip() for h in f if h.strip()]
+                hosts_to_scan = [
+                    h.replace("https://","").replace("http://","").split("/")[0]
+                    for h in f if h.strip()
+                ]
+
 
         # 2) If no alive hosts, try subdomains
         if not hosts_to_scan:
             sub_file = f"{self.output_dir}/subdomains.txt"
             if os.path.exists(sub_file):
                 with open(sub_file) as f:
-                    hosts_to_scan = [h.strip() for h in f if h.strip()] 
+                    hosts_to_scan = [
+                    h.replace("https://","").replace("http://","").split("/")[0]
+                    for h in f if h.strip()
+                ]
+ 
         # 3) If still nothing, fallback to main domain
         if not hosts_to_scan:
-            hosts_to_scan = [self.domain]
+            # Ensure fallback domain is a valid URL (required for Naabu/Nmap)
+            fallback = self.domain.strip()
+            hosts_to_scan = [fallback]
+
             print(f"{Colors.YELLOW}[*] Using fallback target: {hosts_to_scan[0]}{Colors.RESET}")
         print()
         print(f"{Colors.CYAN}[*] Note: Some domains use CDNs (Cloudflare, Akamai, etc.)")
@@ -602,7 +758,7 @@ commands will be provided.{Colors.RESET}
                 f.write(h + "\n")
         alive_file = final_input
 
-        # --- CDN Detection ---
+        #  CDN Detection 
         cdn_providers = ["cloudflare", "akamai", "imperva", "sucuri", "fastly", "cloudfront"]
         cdn_detected = False
         detected_provider = "Unknown"
@@ -842,7 +998,7 @@ commands will be provided.{Colors.RESET}
         if self.tools_status.get('katana', {}).get('installed'):
             print(f"{Colors.YELLOW}[*] Running Katana crawler...{Colors.RESET}")
             katana_output = f"{self.output_dir}/katana_raw.txt"
-            cmd = f"katana -u {self.domain} -d 3 -o {katana_output}"
+            cmd = f"katana -u https://{self.domain} -d 3 -o {katana_output}"
             if self.run_command(cmd, timeout=300):
                 tools_used.append('Katana')
                 raw_files.append(katana_output)
@@ -898,7 +1054,7 @@ commands will be provided.{Colors.RESET}
                             if url and url.startswith(('http://', 'https://')):
                                 # Clean URL
                                 url = url.split('#')[0]  # Remove fragments
-                                if not url.endswith(('.jpg', '.png', '.gif', '.css', '.js', '.ico')):
+                                if not url.endswith(('.jpg', '.png', '.gif', '.css', '.ico')):
                                     unique_urls.add(url)
             
             with open(final_output, 'w') as f:
@@ -918,6 +1074,8 @@ commands will be provided.{Colors.RESET}
             
             self.results['urls'] = count
             self.suggest_next_steps('urls')
+
+            self.merge_all_urls()
             
         except Exception as e:
             print(f"{Colors.RED}[!] Error processing URL results: {e}{Colors.RESET}")
@@ -978,18 +1136,45 @@ commands will be provided.{Colors.RESET}
                 result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
                 output = result.stdout + result.stderr
                 
-                # Parse wafw00f output
-                if 'is behind' in output:
-                    waf_match = re.search(r'is behind\s+(.+?)\s+WAF', output)
-                    if waf_match:
-                        waf_name = waf_match.group(1).strip()
-                        results.append(f"{host}: {waf_name}")
-                        print(f"  {Colors.RED}[WAF] {host}: {waf_name}{Colors.RESET}")
-                    else:
-                        results.append(f"{host}: WAF detected (unknown type)")
-                        print(f"  {Colors.RED}[WAF] {host}: Unknown{Colors.RESET}")
-                elif 'No WAF detected' in output:
+                # Modern, reliable WAF detection
+                out_low = output.lower()
+
+                waf_name = None
+
+                known_wafs = {
+                    "cloudflare": "Cloudflare",
+                    "akamai": "Akamai",
+                    "sucuri": "Sucuri",
+                    "imperva": "Imperva / Incapsula",
+                    "incapsula": "Imperva / Incapsula",
+                    "f5": "F5 Big-IP",
+                    "barracuda": "Barracuda",
+                    "citrix": "Citrix Netscaler",
+                    "stackpath": "StackPath",
+                    "radware": "Radware",
+                    "fastly": "Fastly",
+                    "aws": "AWS WAF",
+                    "azure": "Azure Frontdoor",
+                    "cloudfront": "AWS CloudFront",
+                }
+
+                # Correct WAF detection logic
+
+                # First check explicit "No WAF"
+                if "no waf detected" in out_low or "generic detection" in out_low:
                     results.append(f"{host}: No WAF")
+                    continue  # move to next host
+
+                # Try to match known WAF signatures
+                waf_name = None
+                for key, nice_name in known_wafs.items():
+                    # strict whole-word match to avoid false positives
+                    if re.search(rf"\b{key}\b", out_low):
+                        waf_name = nice_name
+                        break   
+                if waf_name:
+                    results.append(f"{host}: {waf_name}")
+                    print(f"  {Colors.RED}[WAF] {host}: {waf_name}{Colors.RESET}")
                 else:
                     results.append(f"{host}: Unknown/Error")
                     
@@ -1099,7 +1284,1034 @@ commands will be provided.{Colors.RESET}
                 print(f"{Colors.RED}[!] Error processing vulnerability results: {e}{Colors.RESET}")
         else:
             print(f"{Colors.RED}[!] Vulnerability scan failed{Colors.RESET}")
-    
+
+    def run_parameter_discovery(self):
+        """Discover parameters using ParamSpider + Arjun"""
+        if not self.setup_complete:
+            print(f"{Colors.RED}[!] Please set up domain first!{Colors.RESET}")
+            return
+
+        print(f"\n{Colors.CYAN}{Colors.BOLD}[*] Starting Parameter Discovery...{Colors.RESET}\n")
+
+        # Create output directory
+        param_dir = f"{self.output_dir}/parameters"
+        Path(param_dir).mkdir(exist_ok=True)
+
+        #  PARAMSPIDER 
+        if self.tools_status.get('paramspider', {}).get('installed'):
+            print(f"{Colors.YELLOW}[*] Running ParamSpider...{Colors.RESET}")
+            output_ps = f"{param_dir}/paramspider.txt"
+            cmd = (
+                f"python3 /opt/recontools/ParamSpider/paramspider.py "
+                f"-d {self.domain} "
+                f"--subs "
+                f"--exclude woff,css,png,jpg,gif,svg "
+                f"--level high "
+                f"-o {param_dir}"
+            )               
+
+
+            if self.run_command(cmd, timeout=500):
+                print(f"{Colors.GREEN}[✔] ParamSpider completed{Colors.RESET}")
+            else:
+                print(f"{Colors.RED}[!] ParamSpider failed{Colors.RESET}")
+        else:
+            print(f"{Colors.RED}[!] ParamSpider not installed — skipping{Colors.RESET}")
+
+        #  ARJUN 
+        if self.tools_status.get('arjun', {}).get('installed'):
+            print(f"{Colors.YELLOW}[*] Running Arjun...{Colors.RESET}")
+
+            urls_file = f"{self.output_dir}/urls.txt"
+            if not os.path.exists(urls_file):
+                print(f"{Colors.RED}[!] No URLs found. Run URL Collection first.{Colors.RESET}")
+                return
+
+            output_arjun = f"{param_dir}/arjun.json"
+            cmd = (
+                f"python3 /opt/recontools/Arjun/arjun.py "
+                f"-i {urls_file} -t 20 --json -o {output_arjun}"
+            )
+
+            if self.run_command(cmd, timeout=1200):
+                print(f"{Colors.GREEN}[✔] Arjun completed{Colors.RESET}")
+            else:
+                print(f"{Colors.RED}[!] Arjun failed{Colors.RESET}")
+        else:
+            print(f"{Colors.RED}[!] Arjun not installed — skipping{Colors.RESET}")
+
+        #  MERGE RESULTS 
+        print(f"\n{Colors.YELLOW}[*] Merging parameter results...{Colors.RESET}")
+
+        final_output = f"{param_dir}/parameters_final.txt"
+        found = set()
+
+        try:
+            # ParamSpider output
+            ps_file = f"{param_dir}/paramspider.txt"
+            if os.path.exists(ps_file):
+                with open(ps_file) as f:
+                    for line in f:
+                        if "=" in line:
+                            found.add(line.strip())
+
+            # Arjun output
+            arjun_file = f"{param_dir}/arjun.json"
+            if os.path.exists(arjun_file):
+                try:
+                    data = json.load(open(arjun_file))
+                    for entry in data:
+
+                        # Get URL + params
+                        url = entry.get("url")
+                        params = entry.get("params", [])
+
+                        #    FIX: remove existing query parameters
+                        base = url.split("?")[0]
+
+                        # Build FUZZ URLs
+                        for p in params:
+                            found.add(f"{base}?{p}=FUZZ")
+
+                except Exception:
+                    pass
+
+
+            with open(final_output, 'w') as f:
+                for p in sorted(found):
+                    f.write(p + "\n")
+
+            print(f"{Colors.GREEN}[✔] Parameters discovered: {len(found)}{Colors.RESET}")
+            print(f"{Colors.GREEN}[✔] Saved to: {final_output}{Colors.RESET}")
+            self.results['parameters'] = len(found)
+
+        except Exception as e:
+            print(f"{Colors.RED}[!] Failed merging parameter results: {e}{Colors.RESET}")
+
+    def run_js_endpoint_extraction(self):
+        """Extract JS endpoints using LinkFinder + custom JS parser"""
+        if not self.setup_complete:
+            print(f"{Colors.RED}[!] Please set up domain first!{Colors.RESET}")
+            return
+
+        print(f"\n{Colors.CYAN}{Colors.BOLD}[*] Starting JS Endpoint Extraction...{Colors.RESET}\n")
+
+        # Create folders
+        js_dir = f"{self.output_dir}/js_endpoints"
+        js_files_dir = f"{js_dir}/js_files"
+        Path(js_dir).mkdir(exist_ok=True)
+        Path(js_files_dir).mkdir(exist_ok=True)
+
+        urls_file = f"{self.output_dir}/urls.txt"
+        if not os.path.exists(urls_file):
+            print(f"{Colors.RED}[!] No URLs found. Run URL Collection first.{Colors.RESET}")
+            return
+
+        #  FIND JS FILES 
+        print(f"{Colors.YELLOW}[*] Extracting JS URLs...{Colors.RESET}")
+        js_urls = set()
+
+        try:
+            with open(urls_file) as f:
+                for url in f:
+                    url = url.strip()
+                    base = url.split("?")[0]
+                    if base.lower().endswith(".js"):
+                        js_urls.add(base)
+                    
+                    if ".js" in base.lower():
+                        js_urls.add(base.split("?")[0])
+
+        except:
+            pass
+
+        # Save raw JS URLs
+        raw_js_list = f"{js_dir}/js_raw_urls.txt"
+        with open(raw_js_list, "w") as f:
+            for u in sorted(js_urls):
+                f.write(u + "\n")
+
+        print(f"{Colors.GREEN}[✔] Found {len(js_urls)} potential JS files{Colors.RESET}")
+
+        #  DOWNLOAD JS FILES 
+        print(f"{Colors.YELLOW}[*] Downloading JS files...{Colors.RESET}")
+        downloaded_files = []
+
+        for js in js_urls:
+            try:
+                fname = js.split("?")[0]  # remove ?query params
+                fname = fname.replace("https://", "").replace("http://", "")
+                fname = re.sub(r'[^A-Za-z0-9._-]', '_', fname)
+
+                path = f"{js_files_dir}/{fname}"
+
+                if self.run_command(f"curl -s -L '{js}' -o '{path}'", timeout=20):
+                    downloaded_files.append(path)
+            except:
+                continue
+
+        print(f"{Colors.GREEN}[✔] Downloaded {len(downloaded_files)} JS files{Colors.RESET}")
+
+        #  RUN LINKFINDER 
+        print(f"{Colors.YELLOW}[*] Extracting endpoints using LinkFinder...{Colors.RESET}")
+        endpoints_output = f"{js_dir}/endpoints_raw.txt"
+
+        open(endpoints_output, "w").close()
+
+        for js_file in downloaded_files:
+            cmd = (
+                f"python3 /opt/recontools/LinkFinder/linkfinder.py "
+                f"-i '{js_file}' -o cli --no-color --regex >> {endpoints_output}"
+            )
+            self.run_command(cmd, timeout=60)
+
+        #  FIND SECRETS 
+        print(f"{Colors.YELLOW}[*] Detecting secrets in JS files...{Colors.RESET}")
+
+        secret_patterns = [
+            r"api[_-]?key\s*[:=]\s*['\"]([A-Za-z0-9_\-]{10,})['\"]",
+            r"secret\s*[:=]\s*['\"]([A-Za-z0-9_\-]{10,})['\"]",
+            r"token\s*[:=]\s*['\"]([A-Za-z0-9_\-]{10,})['\"]",
+            r"aws_access_key_id\s*[:=]\s*['\"]([A-Z0-9]{16,})['\"]",
+            r"aws_secret_access_key\s*[:=]\s*['\"]([A-Za-z0-9/+=]{30,})['\"]",
+            r"[\"'](https?://[A-Za-z0-9/\-._?=&]+)[\"']",
+        ]
+
+        secrets_output = f"{js_dir}/secrets.txt"
+        found_secrets = set()
+
+        import re
+
+        for path in downloaded_files:
+            try:
+                content = open(path).read()
+                for pattern in secret_patterns:
+                    matches = re.findall(pattern, content)
+                    for m in matches:
+                        found_secrets.add(str(m))
+            except:
+                pass
+
+        with open(secrets_output, "w") as f:
+            for s in sorted(found_secrets):
+                f.write(s + "\n")
+
+        print(f"{Colors.GREEN}[✔] Found {len(found_secrets)} potential secrets{Colors.RESET}")
+
+        #  CLEAN ENDPOINTS 
+        final_endpoints = f"{js_dir}/endpoints.txt"
+        cleaned = set()
+
+        try:
+            import re
+            with open(endpoints_output) as f:
+                for line in f:
+                    # Extract only valid URLs
+                    matches = re.findall(r'https?://[^\s\'"]+', line)
+                    for m in matches:
+                        cleaned.add(m)
+        except:
+            pass
+
+        with open(final_endpoints, "w") as f:
+            for c in sorted(cleaned):
+                f.write(c + "\n")
+
+        print(f"{Colors.GREEN}[✔] Extracted {len(cleaned)} JS endpoints{Colors.RESET}")
+        print(f"{Colors.GREEN}[✔] Results saved to: {js_dir}{Colors.RESET}")
+        # Save result count for summary
+        self.results['js_endpoints'] = len(cleaned)
+
+
+       
+
+    def run_directory_fuzzing(self):
+        """Advanced directory fuzzing using FFUF with recursion, smart extensions, and per-host outputs"""
+        if not self.setup_complete:
+            print(f"{Colors.RED}[!] Please set up domain first!{Colors.RESET}")
+            return
+
+        if not self.tools_status.get('ffuf', {}).get('installed'):
+            print(f"{Colors.RED}[!] FFUF not installed! Install with: go install github.com/ffuf/ffuf@latest{Colors.RESET}")
+            return
+
+        alive_file = f"{self.output_dir}/alive.txt"
+        if not os.path.exists(alive_file):
+            print(f"{Colors.RED}[!] No alive hosts found! Run Alive Hosts Check first.{Colors.RESET}")
+            return
+
+        print(f"\n{Colors.CYAN}{Colors.BOLD}[*] Starting Advanced Directory Fuzzing...{Colors.RESET}\n")
+
+        # Prepare fuzzing folder
+        fuzz_dir = f"{self.output_dir}/fuzzing"
+        Path(fuzz_dir).mkdir(exist_ok=True)
+
+        # Smart wordlist
+        default_wordlist = "/usr/share/wordlists/seclists/Discovery/Web-Content/common.txt"
+        if not os.path.exists(default_wordlist):
+            default_wordlist = "/usr/share/wordlists/dirb/common.txt"
+
+        print(f"{Colors.YELLOW}[*] Using wordlist: {default_wordlist}{Colors.RESET}")
+
+        # Read alive hosts
+        with open(alive_file) as f:
+            hosts = [h.strip() for h in f if h.strip()]
+
+        extensions = "php,html,js,json,txt,bak,old"
+        status_filter = "200,204,301,302,307,401,403"
+
+        for host in hosts:
+            if not host.strip():
+                continue
+            host = host.rstrip("/")
+            if not host.startswith("http://") and not host.startswith("https://"):
+                host = "https://" + host
+            clean_host = host.replace("https://", "").replace("http://", "").replace("/", "_")
+            host_dir = f"{fuzz_dir}/{clean_host}"
+            Path(host_dir).mkdir(exist_ok=True)
+
+            output_file = f"{host_dir}/ffuf_results.txt"
+
+            print(f"\n{Colors.CYAN}[*] Fuzzing {host}{Colors.RESET}")
+
+            cmd = (
+                f"ffuf -u {host}/FUZZ "
+                f"-w {default_wordlist} "
+                f"-recursion "
+                f"-recursion-depth 2 "
+                f"-e {extensions} "
+                f"-fc 404 "
+                f"-mc {status_filter} "
+                f"-timeout 10 "
+                f"-of md " 
+                f"-o {output_file}"
+            )
+
+            if self.run_command(cmd, timeout=1200):
+                print(f"{Colors.GREEN}[✔] Finished fuzzing {host}{Colors.RESET}")
+            else:
+                print(f"{Colors.RED}[!] FFUF failed on {host}{Colors.RESET}")
+
+        print(f"\n{Colors.GREEN}[✔] Directory fuzzing completed. Results saved under: {fuzz_dir}{Colors.RESET}")
+
+    def run_advanced_url_enum(self):
+        """Deep crawling using Hakrawler"""
+        if not self.setup_complete:
+            print(f"{Colors.RED}[!] Please set up domain first!{Colors.RESET}")
+            return
+
+        if not self.tools_status.get('hakrawler', {}).get('installed'):
+            print(f"{Colors.RED}[!] Hakrawler not installed! Install with: go install github.com/hakluke/hakrawler@latest{Colors.RESET}")
+            return
+        
+        print(f"\n{Colors.CYAN}{Colors.BOLD}[*] Starting Advanced URL Enumeration (Hakrawler)...{Colors.RESET}\n")
+
+        adv_dir = f"{self.output_dir}/advanced_urls"
+        Path(adv_dir).mkdir(exist_ok=True)
+
+        output_file = f"{adv_dir}/advanced_urls.txt"
+
+        cmd = f"echo https://{self.domain} | hakrawler -depth 3 -scope subs -plain > {output_file}"
+
+        if self.run_command(cmd, timeout=600):
+            print(f"{Colors.GREEN}[✔] Hakrawler completed{Colors.RESET}")
+
+            try:
+                with open(output_file) as f:
+                    urls = [line.strip() for line in f if line.strip()]
+
+                count = len(urls)
+
+                print(f"{Colors.GREEN}[✔] Found {count} deep URLs{Colors.RESET}")
+                print(f"\n{Colors.CYAN}[*] Sample results:{Colors.RESET}")
+
+                for u in urls[:10]:
+                    print(f"  {Colors.WHITE}• {u}{Colors.RESET}")
+                
+                if count > 10:
+                    print(f"  {Colors.DIM}... and {count-10} more{Colors.RESET}")
+
+            except Exception as e:
+                print(f"{Colors.RED}[!] Error reading Hakrawler output: {e}{Colors.RESET}")
+        else:
+            print(f"{Colors.RED}[!] Hakrawler failed{Colors.RESET}")
+
+        # Merge into final URLs
+        self.merge_all_urls()
+
+    def merge_all_urls(self):
+        """Merge all URL sources into one master URL file"""
+        print(f"\n{Colors.CYAN}{Colors.BOLD}[*] Finalizing URL List (Merging All Sources)...{Colors.RESET}\n")
+
+        final_file = f"{self.output_dir}/urls_final.txt"
+        merged = set()
+
+        # Base URL list
+        base_urls = f"{self.output_dir}/urls.txt"
+        if os.path.exists(base_urls):
+            try:
+                merged.update([line.strip() for line in open(base_urls) if line.strip()])
+            except:
+                pass
+
+        # Hakrawler URLs
+        hak_file = f"{self.output_dir}/advanced_urls/advanced_urls.txt"
+        if os.path.exists(hak_file):
+            try:
+                merged.update([line.strip() for line in open(hak_file) if line.strip()])
+            except:
+                pass
+
+        # JS endpoints
+        js_file = f"{self.output_dir}/js_endpoints/endpoints.txt"
+        if os.path.exists(js_file):
+            try:
+                merged.update([line.strip() for line in open(js_file) if line.strip()])
+            except:
+                pass
+        # normalize URLs (remove trailing slash, strip spaces)
+        normalized = set()
+        for url in merged:
+            u = url.strip()
+            if u.endswith("/"):
+                u = u[:-1]
+            normalized.add(u)
+        merged = normalized
+
+
+        # Remove unwanted file types
+        blacklist = (".png", ".jpg", ".jpeg", ".gif", ".svg",
+                     ".css", ".woff", ".ttf", ".otf", ".ico",
+                     ".mp4", ".mp3")
+
+        cleaned = set()
+        for url in merged:
+            url = url.split("#")[0]
+            if not url.lower().endswith(blacklist):
+                cleaned.add(url)
+
+        try:
+            with open(final_file, 'w') as f:
+                for u in sorted(cleaned):
+                    f.write(u + "\n")
+
+            print(f"{Colors.GREEN}[✔] Total merged URLs: {len(cleaned)}{Colors.RESET}")
+            print(f"{Colors.GREEN}[✔] Saved to: {final_file}{Colors.RESET}")
+
+        except Exception as e:
+            print(f"{Colors.RED}[!] Failed to write merged URL file: {e}{Colors.RESET}")
+
+        return final_file
+
+    def run_gf_filters(self):
+        """Filter interesting URLs using gf (XSS, SQLi, LFI, SSRF, Redirect, RCE)"""
+        if not self.setup_complete:
+            print(f"{Colors.RED}[!] Please set up domain first!{Colors.RESET}")
+            return
+
+        if not self.tools_status.get('gf', {}).get('installed'):
+            print(f"{Colors.RED}[!] gf not installed! Install with: go install github.com/tomnomnom/gf@latest{Colors.RESET}")
+            return
+
+        print(f"\n{Colors.CYAN}{Colors.BOLD}[*] Running GF filters on URLs...{Colors.RESET}\n")
+
+        urls_file = f"{self.output_dir}/urls_final.txt"
+        if not os.path.exists(urls_file):
+            # fallback to plain urls.txt
+            urls_file = f"{self.output_dir}/urls.txt"
+
+        if not os.path.exists(urls_file):
+            print(f"{Colors.RED}[!] No URL file found. Run URL Collection / Advanced URL Enum first.{Colors.RESET}")
+            return
+
+        gf_dir = f"{self.output_dir}/gf"
+        Path(gf_dir).mkdir(exist_ok=True)
+
+        patterns = ["xss", "sqli", "lfi", "ssrf", "redirect", "rce"]
+        stats = {}
+
+        for p in patterns:
+            out_file = f"{gf_dir}/{p}.txt"
+            cmd = f"cat '{urls_file}' | gf {p} > '{out_file}' 2>&1"
+
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+
+            stderr = result.stderr.lower()
+            stdout = result.stdout.lower()
+
+            # Detect GF not installed
+            if "command not found" in stderr or "gf: not found" in stderr:
+                print(f"{Colors.RED}[!] GF is not installed correctly!{Colors.RESET}")
+                print(f"{Colors.YELLOW}[*] Install with: go install github.com/tomnomnom/gf@latest{Colors.RESET}")
+                stats[p] = 0
+                continue     # <-- LEGAL because we’re inside the loop
+
+            # Detect missing GF pattern file
+            if "pattern not found" in stderr or "no such file" in stderr:
+                print(f"{Colors.RED}[!] GF pattern '{p}' is missing!{Colors.RESET}")
+                print(f"{Colors.YELLOW}[*] Run: cp -r /path/to/patterns ~/.gf/patterns{Colors.RESET}")
+                stats[p] = 0
+                continue     # <-- LEGAL inside loop
+            # Read valid GF output
+            try:
+                with open(out_file) as f:
+                    lines = [l.strip() for l in f if l.strip()]
+                stats[p] = len(lines)
+            except:
+                stats[p] = 0    
+
+        print(f"{Colors.CYAN}[*] GF Filter Summary:{Colors.RESET}")
+        for p in patterns:
+            print(f"  {Colors.WHITE}• {p.upper():8}: {stats.get(p, 0)}{Colors.RESET}")
+
+        print(f"{Colors.GREEN}[✔] GF results saved under: {gf_dir}{Colors.RESET}")
+        
+
+    def run_screenshot_capture(self):
+        """Take screenshots of alive hosts using Gowitness"""
+        if not self.setup_complete:
+            print(f"{Colors.RED}[!] Please set up domain first!{Colors.RESET}")
+            return
+
+        if not self.tools_status.get('gowitness', {}).get('installed'):
+            print(f"{Colors.RED}[!] Gowitness not installed! Install with: go install github.com/sensepost/gowitness@latest{Colors.RESET}")
+            return
+
+        alive_file = f"{self.output_dir}/alive.txt"
+        if not os.path.exists(alive_file):
+            print(f"{Colors.RED}[!] No alive hosts found. Run Alive Hosts Check first.{Colors.RESET}")
+            return
+
+        print(f"\n{Colors.CYAN}{Colors.BOLD}[*] Starting Screenshot Capture (Gowitness)...{Colors.RESET}\n")
+
+        shots_dir = f"{self.output_dir}/screenshots"
+        Path(shots_dir).mkdir(exist_ok=True)
+
+        cmd = f"gowitness file -f '{alive_file}' -P '{shots_dir}'"
+        if self.run_command(cmd, timeout=1800):
+            print(f"{Colors.GREEN}[✔] Screenshot capture completed{Colors.RESET}")
+            print(f"{Colors.GREEN}[✔] Screenshots saved in: {shots_dir}{Colors.RESET}")
+        else:
+            print(f"{Colors.RED}[!] Gowitness failed to capture screenshots{Colors.RESET}")
+
+    def run_dns_bruteforce(self):
+        """Bruteforce DNS using MassDNS and merge into subdomains list"""
+        if not self.setup_complete:
+            print(f"{Colors.RED}[!] Please set up domain first!{Colors.RESET}")
+            return
+
+        if not self.tools_status.get('massdns', {}).get('installed'):
+            print(f"{Colors.RED}[!] MassDNS not installed or not configured in tools_status.{Colors.RESET}")
+            print(f"{Colors.YELLOW}    Make sure massdns binary is in /usr/local/bin/massdns or PATH.{Colors.RESET}")
+            return
+
+        print(f"\n{Colors.CYAN}{Colors.BOLD}[*] Starting DNS Bruteforce (MassDNS)...{Colors.RESET}\n")
+
+        dns_dir = f"{self.output_dir}/dns_bruteforce"
+        Path(dns_dir).mkdir(exist_ok=True)
+
+        # Wordlist (common subdomains)
+        wordlist_candidates = [
+            "/usr/share/wordlists/seclists/Discovery/DNS/subdomains-top1million-5000.txt",
+            "/usr/share/wordlists/seclists/Discovery/DNS/subdomains-top1million-110000.txt",
+            "/usr/share/wordlists/dnsmap.txt"
+        ]
+        wordlist = None
+        for wl in wordlist_candidates:
+            if os.path.exists(wl):
+                wordlist = wl
+                break
+
+        if not wordlist:
+            print(f"{Colors.RED}[!] No DNS wordlist found. Please install seclists or provide a wordlist manually.{Colors.RESET}")
+            return
+
+        # Resolvers
+        resolvers_candidates = [
+            "/opt/recontools/massdns/resolvers.txt",
+            "/usr/share/massdns/lists/resolvers.txt",
+            "/etc/massdns/resolvers.txt"
+        ]
+        resolvers = None
+        for r in resolvers_candidates:
+            if os.path.exists(r):
+                resolvers = r
+                break
+
+        if not resolvers:
+            print(f"{Colors.RED}[!] No resolvers.txt found for MassDNS.{Colors.RESET}")
+            print(f"{Colors.YELLOW}    Make sure you have a resolvers file, e.g. /usr/share/massdns/lists/resolvers.txt{Colors.RESET}")
+            return
+
+        # Build input list: word.domain
+        input_file = f"{dns_dir}/massdns_input.txt"
+        try:
+            with open(wordlist) as wl, open(input_file, "w") as out:
+                for line in wl:
+                    sub = line.strip()
+                    if not sub:
+                        continue
+                    out.write(f"{sub}.{self.domain}\n")
+        except Exception as e:
+            print(f"{Colors.RED}[!] Failed to build MassDNS input: {e}{Colors.RESET}")
+            return
+
+        massdns_output = f"{dns_dir}/massdns_raw.txt"
+        cmd = (
+            f"massdns -r '{resolvers}' -t A -o S -w '{massdns_output}' '{input_file}'"
+        )
+
+        if not self.run_command(cmd, timeout=1800):
+            print(f"{Colors.RED}[!] MassDNS bruteforce failed{Colors.RESET}")
+            return
+
+        print(f"{Colors.GREEN}[✔] MassDNS bruteforce completed{Colors.RESET}")
+        print(f"{Colors.YELLOW}[*] Parsing MassDNS output and merging subdomains...{Colors.RESET}")
+
+        bruteforce_subs_file = f"{dns_dir}/bruteforced_subdomains.txt"
+        found_subs = set()
+
+        try:
+            with open(massdns_output) as f:
+                for line in f:
+                    line = line.strip()
+                    # Example S-format: sub.example.com. A 1.2.3.4
+                    if not line or line.startswith(";"):
+                        continue
+                    parts = line.split()
+                    if len(parts) >= 1:
+                        host = parts[0].rstrip(".").lower()
+                        if self.domain in host:
+                            found_subs.add(host)
+
+            with open(bruteforce_subs_file, "w") as out:
+                for s in sorted(found_subs):
+                    out.write(s + "\n")
+
+            print(f"{Colors.GREEN}[✔] Bruteforced subdomains: {len(found_subs)}{Colors.RESET}")
+            print(f"{Colors.GREEN}[✔] Saved to: {bruteforce_subs_file}{Colors.RESET}")
+
+            # Merge into main subdomains.txt
+            main_subs = f"{self.output_dir}/subdomains.txt"
+            # Proper merge (MassDNS + previous subdomains)
+            all_subs = set()
+
+            # Add bruteforced results
+            if os.path.exists(bruteforce_subs_file):
+                all_subs.update([s.strip() for s in open(bruteforce_subs_file) if s.strip()])
+
+            # Add previous results
+            if os.path.exists(main_subs):
+                all_subs.update([s.strip() for s in open(main_subs) if s.strip()])
+
+            # Write safely
+            with open(main_subs, "w") as out:
+                for s in sorted(all_subs):
+                    out.write(s + "\n")
+
+            merged_count = len(all_subs)
+
+            print(f"{Colors.GREEN}[✔] Total subdomains after merge: {merged_count}{Colors.RESET}")
+            self.results['subdomains'] = merged_count
+        except Exception as e:
+            print(f"{Colors.RED}[!] Failed to process MassDNS output: {e}{Colors.RESET}")
+
+    def run_tech_scan(self):
+        """Fingerprint technologies using WhatWeb"""
+        if not self.setup_complete:
+            print(f"{Colors.RED}[!] Please set up domain first!{Colors.RESET}")
+            return
+
+        if not self.tools_status.get('whatweb', {}).get('installed'):
+            print(f"{Colors.RED}[!] WhatWeb not installed! Install with: sudo apt install whatweb{Colors.RESET}")
+            return
+
+        alive_file = f"{self.output_dir}/alive.txt"
+        if not os.path.exists(alive_file):
+            print(f"{Colors.RED}[!] No alive hosts found. Run Alive Hosts Check first.{Colors.RESET}")
+            return
+
+        print(f"\n{Colors.CYAN}{Colors.BOLD}[*] Starting Technology Fingerprinting (WhatWeb)...{Colors.RESET}\n")
+
+        tech_dir = f"{self.output_dir}/tech_scan"
+        Path(tech_dir).mkdir(exist_ok=True)
+
+        output_file = f"{tech_dir}/whatweb_results.json"
+
+        cmd = f"whatweb -i {alive_file} --log-json={output_file}"
+
+        if self.run_command(cmd, timeout=1200):
+            print(f"{Colors.GREEN}[✔] WhatWeb scan completed{Colors.RESET}")
+            # FIX: avoid crash if output file missing or empty
+            if not os.path.exists(output_file) or os.path.getsize(output_file) == 0:
+                print(f"{Colors.RED}[!] WhatWeb produced no output (timeout or empty scan){Colors.RESET}")
+                self.results['tech_scan'] = 0
+                return
+            try:
+                lines = open(output_file).read().strip().split("\n")
+                print(f"{Colors.GREEN}[✔] Total scanned: {len(lines)}{Colors.RESET}")
+                print(f"{Colors.GREEN}[✔] Results saved to: {output_file}{Colors.RESET}")
+                self.results['tech_scan'] = len(lines)
+            except:
+                print(f"{Colors.RED}[!] Error reading WhatWeb output{Colors.RESET}")
+        else:
+            print(f"{Colors.RED}[!] WhatWeb scan failed{Colors.RESET}")
+
+
+    def run_sqlmap_scan(self):
+        """Auto SQL Injection scan using SQLMap on URLs with parameters"""
+        if not self.setup_complete:
+            print(f"{Colors.RED}[!] Please set up domain first!{Colors.RESET}")
+            return
+
+        urls_file = f"{self.output_dir}/urls_final.txt"
+        if not os.path.exists(urls_file):
+            urls_file = f"{self.output_dir}/urls.txt"
+
+        if not os.path.exists(urls_file):
+            print(f"{Colors.RED}[!] No URLs found! Run URL Collection first.{Colors.RESET}")
+            return
+
+        if not self.tools_status.get('sqlmap', {}).get('installed'):
+            print(f"{Colors.RED}[!] SQLMap not installed! Install with: sudo apt install sqlmap{Colors.RESET}")
+            return
+
+        print(f"\n{Colors.CYAN}{Colors.BOLD}[*] Starting SQL Injection Scan (SQLMap)...{Colors.RESET}\n")
+
+        sql_dir = f"{self.output_dir}/sqlmap"
+        Path(sql_dir).mkdir(exist_ok=True)
+
+        # Filter only URLs containing parameters
+        param_urls = []
+        try:
+            with open(urls_file) as f:
+                for line in f:
+                    url = line.strip()
+                    if "=" in url:
+                        param_urls.append(url)
+        except:
+            pass
+
+        if not param_urls:
+            print(f"{Colors.YELLOW}[!] No parameterized URLs found. Nothing to scan.{Colors.RESET}")
+            return
+
+        print(f"{Colors.YELLOW}[*] Found {len(param_urls)} URLs with parameters{Colors.RESET}")
+
+        results_total = 0
+
+        for url in param_urls:
+            clean_name = re.sub(r'[^A-Za-z0-9._-]', '_', url)
+            output_file = f"{sql_dir}/{clean_name}.txt"
+
+            cmd = (
+                f"sqlmap -u '{url}' "
+                f"--batch --level=3 --risk=2 "
+                f"--random-agent --smart "
+                f"--flush-session "
+                f"--output-dir={sql_dir} "   # FIX  place BEFORE redirect
+                f" > '{output_file}' 2>&1"    # FIX     ensure redirection at the end
+            )
+  
+
+
+            print(f"{Colors.CYAN}[*] Scanning: {url}{Colors.RESET}")
+
+            if self.run_command(cmd, timeout=900):
+                if os.path.exists(output_file) and os.path.getsize(output_file) < 15:
+                    os.remove(output_file)
+                    print(f"{Colors.YELLOW}[!] Removed empty SQLMap output for {url}{Colors.RESET}")
+                    continue
+                results_total += 1
+
+        print(f"\n{Colors.GREEN}[✔] SQLMap Scan Completed{Colors.RESET}")
+        print(f"{Colors.GREEN}[✔] Total URLs tested: {results_total}{Colors.RESET}")
+        print(f"{Colors.GREEN}[✔] Output saved to: {sql_dir}{Colors.RESET}")
+        # Save total scanned URLs for summary
+        self.results['sqlmap'] = results_total
+        
+
+
+    def run_deep_recon_mode(self):
+        """Deep Recon Mode: advanced recon chain (URLs, JS, params, fuzzing, screenshots, etc.)"""
+        if not self.setup_complete:
+            print(f"{Colors.RED}[!] Please set up domain first!{Colors.RESET}")
+            return
+
+        print(f"\n{Colors.CYAN}{Colors.BOLD}[*] DEEP RECON MODE INITIATED...{Colors.RESET}\n")
+        print(f"{Colors.YELLOW}[!] This will run multiple advanced modules back-to-back.{Colors.RESET}")
+        print(f"{Colors.YELLOW}[!] Recommended: do basic recon (1–8) once before running this.{Colors.RESET}\n")
+
+        confirm = input(f"{Colors.YELLOW}[?] Continue with Deep Recon Mode? (y/n): {Colors.RESET}").lower().strip()
+        if confirm != 'y':
+            print(f"{Colors.YELLOW}[!] Deep Recon Mode cancelled by user.{Colors.RESET}")
+            return
+
+        start_time = time.time()
+
+        # 1) URL Collection + Advanced URL Enum
+        print(f"\n{Colors.CYAN}{Colors.BOLD}► STEP 1: URL Collection + Advanced Crawling{Colors.RESET}")
+        self.run_url_collection()
+        self.run_advanced_url_enum()
+        self.merge_all_urls() 
+
+        # 2) JS Endpoints + Secrets
+        print(f"\n{Colors.CYAN}{Colors.BOLD}► STEP 2: JS Endpoint Extraction & Secrets{Colors.RESET}")
+        self.run_js_endpoint_extraction()
+
+        # 3) Parameter Discovery
+        print(f"\n{Colors.CYAN}{Colors.BOLD}► STEP 3: Parameter Discovery (ParamSpider + Arjun){Colors.RESET}")
+        self.merge_all_urls() 
+        self.run_parameter_discovery()
+
+        # 4) Directory Fuzzing
+        print(f"\n{Colors.CYAN}{Colors.BOLD}► STEP 4: Directory Fuzzing (FFUF){Colors.RESET}")
+        self.run_directory_fuzzing()
+
+        # 5) API Fuzzing
+        print(f"\n{Colors.CYAN}{Colors.BOLD}► STEP 5: API Fuzzing (Kiterunner){Colors.RESET}")
+        self.run_api_fuzzing()
+
+        # 6) Subdomain Takeover
+        print(f"\n{Colors.CYAN}{Colors.BOLD}► STEP 6: Subdomain Takeover Checks{Colors.RESET}")
+        self.run_subdomain_takeover_check()
+
+        # 7) GF Filters on final URL list
+        print(f"\n{Colors.CYAN}{Colors.BOLD}► STEP 7: GF Filtering (XSS / SQLi / LFI / SSRF / Redirect / RCE){Colors.RESET}")
+        self.run_gf_filters()
+
+        print(f"\n{Colors.CYAN}{Colors.BOLD}► STEP 8: Technology Fingerprinting (WhatWeb){Colors.RESET}")
+        self.run_tech_scan()
+
+        print(f"\n{Colors.CYAN}{Colors.BOLD}► STEP 9: SQL Injection Scan (SQLMap){Colors.RESET}")
+        self.run_sqlmap_scan()
+
+        # 10) Screenshots (visual recon)
+        print(f"\n{Colors.CYAN}{Colors.BOLD}► STEP 10: Screenshot Capture (Gowitness){Colors.RESET}")
+        self.run_screenshot_capture()
+
+        # 11) DNS Bruteforce (extra subs)
+        print(f"\n{Colors.CYAN}{Colors.BOLD}► STEP 11: DNS Bruteforce (MassDNS){Colors.RESET}")
+        self.run_dns_bruteforce()
+
+        end_time = time.time()
+        duration = int(end_time - start_time)
+
+        print(f"\n{Colors.GREEN}{Colors.BOLD}[✔] Deep Recon Mode completed in ~{duration} seconds{Colors.RESET}")
+
+        print(f"{Colors.GREEN}[✔] Results saved under:{Colors.RESET}")
+        print(f"    {self.output_dir}/urls_final.txt")
+        print(f"    {self.output_dir}/js_endpoints/")
+        print(f"    {self.output_dir}/parameters/")
+        print(f"    {self.output_dir}/fuzzing/")
+        print(f"    {self.output_dir}/api_fuzzing/")
+        print(f"    {self.output_dir}/takeover/")
+        print(f"    {self.output_dir}/screenshots/")
+        print(f"    {self.output_dir}/dns_bruteforce/")
+        print(f"    {self.output_dir}/gf/")
+
+
+    def run_api_fuzzing(self):
+        """Fuzz API endpoints using Kiterunner (KR)"""
+        if not self.setup_complete:
+            print(f"{Colors.RED}[!] Please set up domain first!{Colors.RESET}")
+            return
+
+        print(f"\n{Colors.CYAN}{Colors.BOLD}[*] Starting API Fuzzing with Kiterunner...{Colors.RESET}\n")
+
+        # Check KR installation
+        if not self.tools_status.get('kr', {}).get('installed'):
+            print(f"{Colors.RED}[!] Kiterunner (kr) not installed! Install using:{Colors.RESET}")
+            print(f"{Colors.YELLOW}go install github.com/assetnote/kiterunner/cmd/kr@latest{Colors.RESET}")
+            return
+
+        # Check alive hosts
+        alive_file = f"{self.output_dir}/alive.txt"
+        if not os.path.exists(alive_file):
+            print(f"{Colors.RED}[!] No alive hosts found. Run Alive Hosts Check first.{Colors.RESET}")
+            return
+
+        # Prepare output directory
+        api_dir = f"{self.output_dir}/api_fuzzing"
+        Path(api_dir).mkdir(exist_ok=True)
+
+        # Default wordlist (can be swapped to large lists)
+        assetnote_wordlist = "/opt/recontools/kiterunner_wordlists/routes-large.kite"
+
+        # Fallback lists if Assetnote list is missing
+        fallback_lists = [
+            "/usr/share/wordlists/kiterunner/routes-large.kite",
+            "/usr/share/wordlists/kiterunner/routes-small.kite",
+        ]
+        # Select the best available list
+        if os.path.exists(assetnote_wordlist):
+            wordlist = assetnote_wordlist
+        elif any(os.path.exists(w) for w in fallback_lists):
+            wordlist = next(w for w in fallback_lists if os.path.exists(w))
+        else:
+            print(f"{Colors.RED}[!] No valid API wordlist found for Kiterunner!{Colors.RESET}")
+            print(f"{Colors.YELLOW}[*] Creating minimal fallback (very weak results).{Colors.RESET}")
+            fallback = f"{self.output_dir}/fallback_kiterunner.kite"
+            with open(fallback, "w") as f:
+                f.write("/api/v1/users\n/api/v1/login\n/api/v1/admin\n/internal\n/config\n")
+            wordlist = fallback
+
+        print(f"{Colors.YELLOW}[*] Using wordlist:{Colors.RESET} {wordlist}")
+
+        # Load alive hosts
+        with open(alive_file) as f:
+            hosts = [h.strip() for h in f if h.strip()]
+
+        print(f"{Colors.YELLOW}[*] Targets loaded: {len(hosts)}{Colors.RESET}")
+
+        results_total = 0
+
+        # Run KR on each host
+        for host in hosts:
+            if not host.strip():
+                continue
+            if not host.startswith("http://") and not host.startswith("https://"):
+                host = "https://" + host
+            clean_host = host.replace("https://", "").replace("http://", "").strip("/")
+            output_file = f"{api_dir}/{clean_host}_kr_results.txt"
+
+            cmd = (
+                f"kr brute {host} "
+                f"-w {wordlist} "
+                f"-o {output_file} "
+                f"--silent"
+            )
+
+            print(f"{Colors.CYAN}[*] Fuzzing: {host}{Colors.RESET}")
+
+            if self.run_command(cmd, timeout=900):  # 15 minutes max
+                print(f"{Colors.GREEN}[✔] KR completed for {host}{Colors.RESET}")
+
+                try:
+                    if not os.path.exists(output_file):
+                        print(f"{Colors.RED}[!] No KR output for {clean_host}{Colors.RESET}")
+                        continue
+                    with open(output_file) as f:
+                        lines = {l.strip() for l in f if l.strip()}
+
+                    count = len(lines)
+                    results_total += count
+
+                    print(f"{Colors.GREEN}  → Found {count} endpoints{Colors.RESET}")
+                except:
+                    print(f"{Colors.RED}[!] Failed reading KR results for {host}{Colors.RESET}")
+            else:
+                print(f"{Colors.RED}[!] KR failed for {host}{Colors.RESET}")
+
+        print(f"\n{Colors.GREEN}[✔] API Fuzzing Completed{Colors.RESET}")
+        print(f"{Colors.GREEN}[✔] Total endpoints discovered: {results_total}{Colors.RESET}")
+        print(f"{Colors.GREEN}[✔] Results saved to: {api_dir}{Colors.RESET}")
+
+        self.results['api_fuzz'] = results_total
+        self.merge_all_urls()
+
+    def run_subdomain_takeover_check(self):
+        """Detect potential subdomain takeover vulnerabilities using Subzy + CNAME validation"""
+        if not self.setup_complete:
+            print(f"{Colors.RED}[!] Please set up domain first!{Colors.RESET}")
+            return
+
+        print(f"\n{Colors.CYAN}{Colors.BOLD}[*] Starting Subdomain Takeover Check...{Colors.RESET}")
+
+        subdomains_file = f"{self.output_dir}/subdomains.txt"
+        if not os.path.exists(subdomains_file):
+            print(f"{Colors.RED}[!] No subdomains found! Run Subdomain Enumeration first.{Colors.RESET}")
+            return
+
+        takeover_dir = f"{self.output_dir}/takeover"
+        Path(takeover_dir).mkdir(exist_ok=True)
+
+        output_file = f"{takeover_dir}/subzy_results.txt"
+
+        #  PART 1 — SUBZY SCAN
+        if self.tools_status.get('subzy', {}).get('installed'):
+            print(f"{Colors.YELLOW}[*] Running Subzy...{Colors.RESET}")
+
+            cmd = (
+                f"/usr/local/bin/subzy run "
+                f"--targets {subdomains_file} "
+                f"--concurrency 50 "
+                f"--hide_fails "
+                f"--output {output_file}"
+            )
+
+            if self.run_command(cmd, timeout=900):
+                print(f"{Colors.GREEN}[✔] Subzy completed{Colors.RESET}")
+            else:
+                print(f"{Colors.RED}[!] Subzy failed — continuing with fallback detection{Colors.RESET}")
+        else:
+            print(f"{Colors.YELLOW}[!] Subzy not installed — skipping direct scan{Colors.RESET}")
+
+
+        #  PART 2 — FALLBACK CNAME TAKEOVER CHECK
+
+        print(f"{Colors.YELLOW}[*] Running fallback CNAME-based scan...{Colors.RESET}")
+
+        fallback_file = f"{takeover_dir}/cname_fallback.txt"
+
+        with open(subdomains_file) as f:
+            subs = [s.strip() for s in f if s.strip()]
+
+        takeover_keywords = [
+            "herokuapp", "github.io", "amazonaws.com", "cloudfront.net",
+            "azurewebsites.net", "trafficmanager.net", "fastly.net",
+            "readme.io", "bitbucket.io", "s3.amazonaws.com",
+            "digitaloceanspaces.com", "surge.sh", "zendesk.com",
+            "cname.vercel-dns.com",
+            "io.zeit.co",
+            "myshopify.com",
+            "wordpress.com",
+            "ghs.google.com",
+            "unbouncepages.com",
+        ]
+
+        findings = []
+
+        for sub in subs:
+            cmd = f"dig +short CNAME {sub}"
+            try:
+                result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+                cname = result.stdout.strip()
+
+                if cname:
+                    for key in takeover_keywords:
+                        if key in cname.lower():
+                            findings.append(f"{sub} → {cname}")
+                            print(f"{Colors.RED}[!] Potential Takeover: {sub} → {cname}{Colors.RESET}")
+            except:
+                continue
+
+        with open(fallback_file, "w") as f:
+            for entry in findings:
+                f.write(entry + "\n")
+
+
+        #   FINAL SUMMARY
+
+        total = 0
+
+        if os.path.isfile(output_file) and os.path.getsize(output_file) > 0:
+            try:
+                lines = open(output_file).read().strip().split("\n")
+                subzy_hits = [l for l in lines if "VULNERABLE" in l.upper()]
+                total += len(subzy_hits)
+            except:
+                pass
+
+        total += len(findings)
+
+        print(f"\n{Colors.GREEN}[✔] Subdomain Takeover Scan Completed{Colors.RESET}")
+        print(f"{Colors.GREEN}[✔] Total potential vulnerabilities: {total}{Colors.RESET}")
+        print(f"{Colors.GREEN}[✔] Results saved to: {takeover_dir}{Colors.RESET}")
+
+        self.results['takeover'] = total
+
+
     def run_full_automated_recon(self):
         """Run complete automated reconnaissance sequence"""
         if not self.setup_complete:
@@ -1269,6 +2481,57 @@ commands will be provided.{Colors.RESET}
                 if waf_total > 0:
                     f.write(f"  • File: {self.output_dir}/waf_summary.txt\n")
                 
+                # JS Endpoints
+                js_count = self.results.get('js_endpoints', 0)
+                f.write(f"JS Endpoints Extracted: {js_count}\n")
+                if js_count > 0:
+                    f.write(f"  • File: {self.output_dir}/js_endpoints/endpoints.txt\n")
+
+                #  Parameters
+                param_count = self.results.get('parameters', 0)
+                f.write(f"Parameters Discovered: {param_count}\n")
+                if param_count > 0:
+                    f.write(f"  • File: {self.output_dir}/parameters/parameters_final.txt\n")
+                # GF Filters
+                gf_dir = f"{self.output_dir}/gf"
+                patterns = ['xss','sqli','lfi','ssrf','redirect','rce']
+                gf_stats = {}
+
+                for p in patterns:
+                    file_path = f"{gf_dir}/{p}.txt"
+                    if os.path.isfile(file_path):
+                        try:
+                            gf_stats[p] = len([l for l in open(file_path).read().split("\n") if l.strip()])
+                        except:
+                            gf_stats[p] = 0
+                    else:
+                        gf_stats[p] = 0 
+                f.write(f"GF Findings:\n")
+                for k,v in gf_stats.items():
+                    f.write(f"  • {k.upper()}: {v}\n")
+
+                # API fuzzing
+                api_fuzz = self.results.get('api_fuzz', 0)
+                f.write(f"API Endpoints Fuzzed: {api_fuzz}\n")
+                if api_fuzz > 0:
+                    f.write(f"  • Directory: {self.output_dir}/api_fuzzing/\n")
+
+                # Tech Scan
+                tech = self.results.get('tech_scan', 0)
+                f.write(f"Technologies Identified: {tech}\n")
+                if tech > 0:
+                    f.write(f"  • File: {self.output_dir}/tech_scan/whatweb_results.txt\n")
+                # SQL Injection
+                sqlmap = self.results.get('sqlmap', 0)
+                f.write(f"SQLMap Scanned URLs: {sqlmap}\n")
+                if sqlmap > 0:
+                    f.write(f"  • Directory: {self.output_dir}/sqlmap/\n")
+                # Subdomain Takeover
+                takeover = self.results.get('takeover', 0)
+                f.write(f"Subdomain Takeover Findings: {takeover}\n")
+                if takeover > 0:
+                    f.write(f"  • Directory: {self.output_dir}/takeover/\n")
+                
                 # Vulnerabilities
                 vuln_count = self.results.get('vulnerabilities', 0)
                 critical_count = self.results.get('critical_vulns', 0)
@@ -1376,6 +2639,35 @@ commands will be provided.{Colors.RESET}
                 self.run_vulnerability_scan()
             elif choice == '9':
                 self.run_full_automated_recon()
+            elif choice == '10':
+                self.run_parameter_discovery()
+            elif choice == '11':
+                self.run_js_endpoint_extraction()
+            elif choice == '12':
+                self.run_directory_fuzzing()
+            elif choice == '13':
+                self.run_api_fuzzing()
+            elif choice == '14':
+                self.run_subdomain_takeover_check()
+            elif choice == '15':
+                self.run_advanced_url_enum()
+            elif choice == '16':
+                self.run_screenshot_capture()
+            elif choice == '17':
+                self.run_dns_bruteforce()
+            elif choice == '18':
+                self.run_gf_filters()
+            elif choice == '19':
+                self.run_tech_scan()
+            elif choice == '20':
+                self.run_sqlmap_scan()
+
+
+            elif choice == 'D':
+                self.run_deep_recon_mode()
+
+
+            
             elif choice == 'C':
                 self.setup_domain()
             elif choice == 'I':

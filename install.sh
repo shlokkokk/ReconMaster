@@ -1,12 +1,11 @@
 #!/bin/bash
 
-
 # ReconMaster Installation Script
-# Professional Reconnaissance Framework for Kali Linux
 
 
 set -e
 INSTALL_DIR="$(pwd)"
+
 # Colors for beautiful output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -20,18 +19,18 @@ NC='\033[0m' # No Color
 # ASCII Banner
 banner() {
     echo -e "${CYAN}"
-echo "╔══════════════════════════════════════════════════════════════════════════════════════════════════════╗"
-echo "║                                                                                                      ║"
-echo "║    ██████╗ ███████╗ ██████╗ ██████╗ ███╗   ██╗███╗   ███╗ █████╗ ███████╗████████╗███████╗██████╗    ║"
-echo "║    ██╔══██╗██╔════╝██╔════╝██╔═══██╗████╗  ██║████╗ ████║██╔══██╗██╔════╝╚══██╔══╝██╔════╝██╔══██╗   ║"
-echo "║    ██████╔╝█████╗  ██║     ██║   ██║██╔██╗ ██║██╔████╔██║███████║███████╗   ██║   █████╗  ██████╔╝   ║"
-echo "║    ██╔══██╗██╔══╝  ██║     ██║   ██║██║╚██╗██║██║╚██╔╝██║██╔══██║╚════██║   ██║   ██╔══╝  ██╔══██╗   ║"
-echo "║    ██║  ██║███████╗╚██████╗╚██████╔╝██║ ╚████║██║ ╚═╝ ██║██║  ██║███████║   ██║   ███████╗██║  ██║   ║"
-echo "║    ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝   ║"
-echo "║                                                                                                      ║"
-echo "║                        Professional Reconnaissance Framework Installation                            ║"
-echo "║                                                                                                      ║"
-echo "╚══════════════════════════════════════════════════════════════════════════════════════════════════════╝"
+    echo "╔══════════════════════════════════════════════════════════════════════════════════════════════════════╗"
+    echo "║                                                                                                      ║"
+    echo "║    ██████╗ ███████╗ ██████╗ ██████╗ ███╗   ██╗███╗   ███╗ █████╗ ███████╗████████╗███████╗██████╗    ║"
+    echo "║    ██╔══██╗██╔════╝██╔════╝██╔═══██╗████╗  ██║████╗ ████║██╔══██╗██╔════╝╚══██╔══╝██╔════╝██╔══██╗   ║"
+    echo "║    ██████╔╝█████╗  ██║     ██║   ██║██╔██╗ ██║██╔████╔██║███████║███████╗   ██║   █████╗  ██████╔╝   ║"
+    echo "║    ██╔══██╗██╔══╝  ██║     ██║   ██║██║╚██╗██║██║╚██╔╝██║██╔══██║╚════██║   ██║   ██╔══╝  ██╔══██╗   ║"
+    echo "║    ██║  ██║███████╗╚██████╗╚██████╔╝██║ ╚████║██║ ╚═╝ ██║██║  ██║███████║   ██║   ███████╗██║  ██║   ║"
+    echo "║    ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝   ║"
+    echo "║                                                                                                      ║"
+    echo "║                        Professional Reconnaissance Framework Installation                            ║"
+    echo "║                                                                                                      ║"
+    echo "╚══════════════════════════════════════════════════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
 }
 
@@ -92,6 +91,7 @@ install_dependencies() {
         python3 \
         python3-pip \
         python3-dev \
+        python3-venv \
         libffi-dev \
         libssl-dev \
         libxml2-dev \
@@ -107,7 +107,8 @@ install_dependencies() {
         ruby \
         ruby-dev \
         golang-go \
-        snapd
+        dnsutils \
+        whois
     
     echo -e "${GREEN}[✔] Dependencies installed${NC}"
 }
@@ -121,7 +122,7 @@ install_go_tools() {
     export PATH=$PATH:$GOPATH/bin
     
     # Create go directory if it doesn't exist
-    mkdir -p $GOPATH/bin
+    mkdir -p "$GOPATH/bin"
     
     # Install tools using go install
     tools=(
@@ -134,6 +135,14 @@ install_go_tools() {
         "github.com/tomnomnom/assetfinder@latest"
         "github.com/tomnomnom/waybackurls@latest"
         "github.com/lc/gau@latest"
+        "github.com/tomnomnom/gf@latest"
+        # Extra recon & fuzzing
+        "github.com/hakluke/hakrawler@latest"
+        "github.com/ffuf/ffuf@latest"
+        "github.com/assetnote/kiterunner/cmd/kr@latest"
+        "github.com/hahwul/dalfox/v2@latest"
+        "github.com/sensepost/gowitness@latest"
+        "github.com/projectdiscovery/asnmap/cmd/asnmap@latest"
     )
     
     for tool in "${tools[@]}"; do
@@ -145,10 +154,22 @@ install_go_tools() {
         fi
     done
     
-    # Add go/bin to PATH permanently
+    # Add go/bin to PATH permanently (for interactive shells)
+    # Add go/bin to PATH permanently (for both bash and zsh)
     echo 'export GOPATH=$HOME/go' >> ~/.zshrc
     echo 'export PATH=$PATH:$GOPATH/bin' >> ~/.zshrc
-    
+
+    echo 'export GOPATH=$HOME/go' >> ~/.bashrc
+    echo 'export PATH=$PATH:$GOPATH/bin' >> ~/.bashrc
+
+    # Symlink important Go binaries so ReconMaster can use them under sudo/root
+    local bins=(subfinder naabu httpx dnsx katana nuclei assetfinder waybackurls gau gf hakrawler ffuf kr dalfox gowitness asnmap)
+    for bin in "${bins[@]}"; do
+        if [[ -f "$GOPATH/bin/$bin" ]]; then
+            ln -sf "$GOPATH/bin/$bin" "/usr/local/bin/$bin" 2>/dev/null || true
+        fi
+    done
+
     echo -e "${GREEN}[✔] Go tools installation completed${NC}"
 }
 
@@ -156,36 +177,147 @@ install_go_tools() {
 install_additional_tools() {
     echo -e "${CYAN}[*] Installing additional reconnaissance tools...${NC}"
     
-    # Install from apt
+    # Install from apt 
     apt install -y \
         dirb \
         gobuster \
         wfuzz \
         sqlmap \
         whatweb \
-        eyewitness \
-        photon \
-        theharvester
-    
-    # Install from GitHub
+        theharvester \
+        chromium \
+        testssl.sh || echo -e "${YELLOW}[!] Some additional apt tools failed to install (non-critical).${NC}"
+
+    #install these separately and ignore failures
+    apt install -y eyewitness photon 2>/dev/null || \
+        echo -e "${YELLOW}[!] eyewitness or photon not found in repos (skipping).${NC}"
+
     echo -e "${YELLOW}[*] Installing additional tools from GitHub...${NC}"
     
-    # Clone and install some useful tools
+    # Working directory for extra tools
     mkdir -p /opt/recontools
     cd /opt/recontools
-    
-    # Subdomain takeover tool
+
+    # Subdomain takeover (Subzy)
     if [[ ! -d "subzy" ]]; then
+        echo -e "${YELLOW}[*] Cloning Subzy (subdomain takeover)...${NC}"
         git clone https://github.com/LukaSikic/subzy.git
         cd subzy
-        go install
+        go install ./... || true
+        cd ..
+        # Ensure subzy is globally available
+        if [[ -n "$GOPATH" && -f "$GOPATH/bin/subzy" ]]; then
+            ln -sf "$GOPATH/bin/subzy" /usr/local/bin/subzy 2>/dev/null || true
+        fi
+    fi
+
+    # ParamSpider (parameter discovery)
+    if [[ ! -d "ParamSpider" ]]; then
+        echo -e "${YELLOW}[*] Cloning ParamSpider...${NC}"
+        git clone https://github.com/devanshbatham/ParamSpider.git
+        cd ParamSpider
+        pip3 install -r requirements.txt --break-system-packages 2>/dev/null || pip3 install -r requirements.txt || true
         cd ..
     fi
-    
-    # HTTPX is already installed via go install
-    
-    echo -e "${GREEN}[✔] Additional tools installed${NC}"
 
+    # Arjun (hidden parameter discovery)
+    if [[ ! -d "Arjun" ]]; then
+        echo -e "${YELLOW}[*] Cloning Arjun...${NC}"
+        git clone https://github.com/s0md3v/Arjun.git
+        cd Arjun
+        pip3 install -r requirements.txt --break-system-packages 2>/dev/null || pip3 install -r requirements.txt || true
+        cd ..
+    fi
+
+    # XSStrike (advanced XSS scanner)
+    if [[ ! -d "XSStrike" ]]; then
+        echo -e "${YELLOW}[*] Cloning XSStrike...${NC}"
+        git clone https://github.com/s0md3v/XSStrike.git
+        cd XSStrike
+        pip3 install -r requirements.txt --break-system-packages 2>/dev/null || pip3 install -r requirements.txt || true
+        cd ..
+    fi
+
+    # Smuggler (HTTP request smuggling)
+    if [[ ! -d "smuggler" ]]; then
+        echo -e "${YELLOW}[*] Cloning Smuggler...${NC}"
+        git clone https://github.com/defparam/smuggler.git
+        # Python script, no build needed
+    fi
+
+    # MassDNS (fast DNS bruteforcer)
+    if [[ ! -d "massdns" ]] ; then
+        echo -e "${YELLOW}[*] Cloning MassDNS...${NC}"
+        git clone https://github.com/blechschmidt/massdns.git
+        cd massdns
+        make
+        ln -sf /opt/recontools/massdns/bin/massdns /usr/local/bin/massdns
+        cd ..
+        wget -q https://raw.githubusercontent.com/blechschmidt/massdns/master/lists/resolvers.txt \
+            -O /opt/recontools/massdns/resolvers.txt
+    fi
+
+    # LinkFinder (JS endpoint finder) - must match /opt/recontools/LinkFinder/linkfinder.py
+    if [[ ! -d "LinkFinder" ]]; then
+        echo -e "${YELLOW}[*] Cloning LinkFinder...${NC}"
+        git clone https://github.com/GerbenJavado/LinkFinder.git
+        cd LinkFinder
+        pip3 install -r requirements.txt --break-system-packages 2>/dev/null || pip3 install -r requirements.txt || true
+        cd ..
+        ln -sf /opt/recontools/LinkFinder/linkfinder.py /usr/local/bin/linkfinder
+        chmod +x /usr/local/bin/linkfinder
+    fi
+
+    # JS Beautifier (for JS analysis)
+    if ! pip3 show jsbeautifier >/dev/null 2>&1; then
+        echo -e "${YELLOW}[*] Installing jsbeautifier...${NC}"
+        pip3 install jsbeautifier --break-system-packages 2>/dev/null \
+            || pip3 install jsbeautifier \
+            || true
+    fi
+
+    # S3Scanner (AWS S3 bucket scanner)
+    if ! command -v s3scanner >/dev/null 2>&1; then
+        echo -e "${YELLOW}[*] Installing S3Scanner...${NC}"
+        pip3 install s3scanner --break-system-packages 2>/dev/null \
+            || pip3 install s3scanner \
+            || true
+    else
+        echo -e "${GREEN}[✔] S3Scanner already installed${NC}"
+    fi
+
+        # cloud_enum (cloud asset enumerator)
+    if [[ ! -d "cloud_enum" ]]; then
+        echo -e "${YELLOW}[*] Cloning cloud_enum...${NC}"
+        git clone https://github.com/initstring/cloud_enum.git
+        cd cloud_enum
+        pip3 install -r requirements.txt --break-system-packages 2>/dev/null || pip3 install -r requirements.txt || true
+        cd ..
+    else
+        echo -e "${GREEN}[✔] cloud_enum already present in /opt/recontools/cloud_enum${NC}"
+    fi
+
+    echo -e "${YELLOW}[*] Ensuring GF patterns installed...${NC}"
+
+    # Install for root (sudo mode)
+    mkdir -p ~/.gf
+    cp gf/examples/*.json ~/.gf/ 2>/dev/null || true
+    cp Gf-Patterns/*.json ~/.gf/ 2>/dev/null || true
+
+    # Install also for the normal user
+    if [[ -n "$SUDO_USER" ]]; then
+        USER_HOME="/home/$SUDO_USER"
+        mkdir -p "$USER_HOME/.gf"
+        cp ~/.gf/*.json "$USER_HOME/.gf/" 2>/dev/null || true
+        chown -R "$SUDO_USER:$SUDO_USER" "$USER_HOME/.gf"
+    fi
+
+    # Kiterunner wordlists
+    mkdir -p /opt/recontools/kiterunner_wordlists
+    wget -q https://wordlists-cdn.assetnote.io/data/kiterunner/routes-large.kite \
+        -O /opt/recontools/kiterunner_wordlists/routes-large.kite
+
+    echo -e "${GREEN}[✔] Additional tools installed${NC}"
     cd "$INSTALL_DIR"
 }
 
@@ -207,6 +339,8 @@ setup_python_env() {
         pyfiglet \
         dnslib \
         dnspython
+
+    pip3 install --break-system-packages pandas numpy || true
     
     echo -e "${GREEN}[✔] Python environment setup completed${NC}"
 }
@@ -217,12 +351,9 @@ setup_reconmaster() {
 
     cd "$INSTALL_DIR"
 
-    # Use the saved install directory so cd doesn't break it
     if [[ -f "$INSTALL_DIR/reconmaster.py" ]]; then
-
         ln -sf "$INSTALL_DIR/reconmaster.py" /usr/local/bin/reconmaster
         chmod +x /usr/local/bin/reconmaster
-
         echo -e "${GREEN}[✔] ReconMaster installed to /usr/local/bin/reconmaster${NC}"
     else
         echo -e "${RED}[!] reconmaster.py not found in: $INSTALL_DIR${NC}"
@@ -240,7 +371,6 @@ setup_reconmaster() {
     echo -e "${GREEN}[✔] ReconMaster setup completed${NC}"
 }
 
-
 # Test installation
 test_installation() {
     echo -e "${CYAN}[*] Testing installation...${NC}"
@@ -253,7 +383,31 @@ test_installation() {
     fi
     
     # Test key tools
-    tools=("subfinder" "httpx" "naabu" "nuclei" "amass" "nmap")
+    tools=(
+        "subfinder"
+        "amass"
+        "assetfinder"
+        "dnsx"
+        "httpx"
+        "naabu"
+        "nmap"
+        "katana"
+        "gau"
+        "waybackurls"
+        "wafw00f"
+        "nuclei"
+        "hakrawler"
+        "ffuf"
+        "kr"
+        "dalfox"
+        "gf"
+        "whatweb"
+        "theharvester"
+        "asnmap"
+        "gowitness"
+        "massdns"
+        "subzy"
+    )
     
     for tool in "${tools[@]}"; do
         if command -v "$tool" &> /dev/null; then
@@ -314,7 +468,6 @@ main() {
         exit 0
     fi
     
-    # Execute installation steps
     update_system
     install_dependencies
     install_go_tools
@@ -325,5 +478,4 @@ main() {
     show_usage
 }
 
-# Run main function
 main "$@"

@@ -2,7 +2,7 @@
 
 **Professional Reconnaissance Framework for Kali Linux**
 
-![Version](https://img.shields.io/badge/version-1.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.0-red.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Python](https://img.shields.io/badge/python-3.6+-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Kali%20Linux-orange.svg)
@@ -23,7 +23,45 @@ ReconMaster is the most advanced, beautiful, and intelligent reconnaissance fram
 - **⚡ Performance Optimized** - Parallel processing and intelligent timeouts
 - **🎯 Beginner-Friendly** - Clear menus and helpful hints throughout
 
+### 🆕 New in ReconMaster v2
+
+- **🔍 JS Endpoint Extraction** (LinkFinder + custom JS parser + secret finder)
+- **🧩 Parameter Discovery** (ParamSpider + Arjun merging engine)
+- **🗂️ Advanced Directory Fuzzing** (FFUF with recursion + smart extensions)
+- **🛰️ API Fuzzing** (Kiterunner with automatic wordlist selection)
+- **📸 Screenshot Capture** (Gowitness automation)
+- **🔬 Tech Stack Fingerprinting** (WhatWeb JSON output)
+- **💣 SQLi Auto-Exploitation** (SQLMap batch scanning)
+- **⚠️ Subdomain Takeover Check** (Subzy + CNAME fallback engine)
+- **🌐 Deep URL Enumeration** (Hakrawler deep crawl)
+- **🧠 Deep Recon Mode** (11-step chained modules)
+
+
 ---
+## 🚀 Deep Recon Mode (v2)
+
+Deep Recon Mode executes **11 modules automatically**, including:
+
+1. URL Collection  
+2. Advanced URL Enum  
+3. JS Endpoint Extraction  
+4. Parameter Discovery  
+5. Directory Fuzzing  
+6. API Fuzzing  
+7. Subdomain Takeover Check  
+8. GF Filters  
+9. Tech Scan  
+10. SQLMap Scan  
+11. DNS Bruteforce  
+12. Screenshot Capture  
+ 
+
+Run it with:
+
+
+sudo reconmaster
+Select: D
+
 
 ## 🚀 Quick Start
 
@@ -75,6 +113,24 @@ sudo reconmaster
 | **C** | Change Domain | Switch to a different target domain |
 | **I** | Initialize Tools | Check and install required tools |
 | **H** | Help System | Comprehensive help and usage guide |
+| **Q** | Quit | Exit ReconMaster |
+### Advanced Modules (ReconMaster v2)
+
+| Option | Module                     | Description                                    | Tools Used                    |
+|--------|----------------------------|------------------------------------------------|-------------------------------|
+| **10** | Parameter Discovery        | Find hidden GET/POST parameters                | ParamSpider, Arjun            |
+| **11** | JS Endpoint Extraction     | Extract JS endpoints + secrets                 | LinkFinder, custom parser     |
+| **12** | Directory Fuzzing          | Recursive fuzzing with smart extensions        | FFUF                          |
+| **13** | API Fuzzing                | Bruteforce API endpoints                       | Kiterunner (kr)               |
+| **14** | Subdomain Takeover Check   | Detect takeover risks using CNAME + Subzy      | Subzy, dig                    |
+| **15** | Advanced URL Enumeration   | Deep crawling beyond base URL                  | Hakrawler                     |
+| **16** | Screenshot Capture         | Take screenshots of alive hosts                | Gowitness                     |
+| **17** | DNS Bruteforce             | High-speed subdomain bruteforce                | MassDNS                       |
+| **18** | GF Filters                 | Extract XSS/SQLi/LFI/SSRF/etc. patterns        | gf                            |
+| **19** | Technology Scan            | Fingerprint tech stack details                 | WhatWeb                       |
+| **20** | SQL Injection Scan         | Auto SQLMap exploitation                       | SQLMap                        |
+| **D**  | Deep Recon Mode            | Runs 11 advanced modules back-to-back          | ALL tools                     |
+
 
 ---
 
@@ -95,18 +151,63 @@ ReconMaster intelligently integrates industry-standard tools:
 ### Output Structure
 
 ```
-output-domain.com/
-├── subdomains_raw.txt      # Raw enumeration results
-├── subdomains.txt          # Cleaned subdomain list
-├── dns_resolved.txt        # DNS resolution results
-├── alive.txt               # Live HTTP servers
-├── ports_fast.txt          # Quick port scan results
-├── ports_full.txt          # Detailed Nmap results
-├── urls.txt                # Collected endpoints
-├── waf_summary.txt         # WAF detection results
-├── nuclei_output.txt       # Vulnerability findings
-├── summary.txt             # Executive summary
-└── logs/                   # Execution logs
+output-example.com/
+├── subdomains.txt
+├── dns_resolved.txt
+├── alive.txt
+├── ports_fast.txt
+├── ports_full.txt
+├── urls.txt
+├── urls_final.txt
+│
+├── js_endpoints/
+│   ├── js_raw_urls.txt
+│   ├── js_files/
+│   ├── endpoints_raw.txt
+│   ├── endpoints.txt
+│   └── secrets.txt
+│
+├── parameters/
+│   ├── paramspider_raw.txt
+│   ├── arjun_raw.txt
+│   └── parameters_final.txt
+│
+├── fuzzing/
+│   └── <host>/ffuf_results.txt
+│
+├── api_fuzzing/
+│   └── <host>_kr_results.txt
+│
+├── takeover/
+│   ├── subzy_results.txt
+│   └── cname_fallback.txt
+│
+├── advanced_urls/
+│   └── advanced_urls.txt
+│
+├── dns_bruteforce/
+│   ├── massdns_input.txt
+│   ├── massdns_raw.txt
+│   └── bruteforced_subdomains.txt
+│
+├── screenshots/
+│   └── *.png
+│
+├── gf/
+│   ├── xss.txt
+│   ├── sqli.txt
+│   ├── lfi.txt
+│   ├── ssrf.txt
+│   ├── redirect.txt
+│   └── rce.txt
+│
+├── sqlmap/
+│   └── *.txt
+│
+├── tech_scan/
+│   └── whatweb_results.json
+│
+└── summary.txt
 ```
 
 ---
@@ -171,6 +272,17 @@ Phase 7: Vulnerability Scanning ✔
 - **Waybackurls** - Archive URLs
 - **Wafw00f** - WAF detection
 - **Nuclei** - Vulnerability scanner
+- **ParamSpider** – Parameter discovery  
+- **Arjun** – Hidden parameter discovery  
+- **LinkFinder** – JS endpoint extraction  
+- **FFUF** – Directory fuzzing  
+- **Kiterunner (kr)** – API fuzzing  
+- **Gowitness** – Web screenshots  
+- **WhatWeb** – Tech fingerprinting  
+- **SQLMap** – SQL injection detection  
+- **Subzy** – Subdomain takeover detection  
+- **Hakrawler** – Deep crawling  
+- **MassDNS** – DNS bruteforce  
 
 ### Installation Commands
 
@@ -305,6 +417,24 @@ Vulnerabilities Found: 23
 
 ## 🔍 Troubleshooting
 
+
+### KR (Kiterunner) fails or exits instantly
+Ensure kr is symlinked:
+
+ls /usr/local/bin/kr
+
+If missing, reinstall:
+go install github.com/assetnote/kiterunner/cmd/kr@latest
+
+### JS Module shows 0 endpoints
+Ensure LinkFinder path exists:
+ls /opt/recontools/LinkFinder/linkfinder.py
+
+### Subzy not running
+Verify binary:
+ls /usr/local/bin/subzy
+
+
 ### Common Issues
 
 **Q: ReconMaster won't start**
@@ -412,5 +542,15 @@ pip3 install -r requirements-dev.txt
 # Run tests
 python3 -m pytest tests/
 ```
+
+ReconMaster v2 performs **high-intensity active recon modules** such as:
+
+- FFUF fuzzing  
+- SQLMap exploitation  
+- MassDNS bruteforce  
+- Kiterunner API fuzzing  
+
+Use ONLY on targets you have permission to test.
+
 
 ---
