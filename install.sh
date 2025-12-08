@@ -3,7 +3,7 @@
 # ReconMaster Installation Script
 
 
-set -e
+set -eo pipefail
 INSTALL_DIR="$(pwd)"
 
 # Colors for beautiful output
@@ -118,8 +118,25 @@ install_go_tools() {
     echo -e "${CYAN}[*] Installing Go-based security tools...${NC}"
     
     # Set GOPATH if not set
-    export GOPATH=$HOME/go
+    # Correct GOPATH handling for sudo/root installs
+    if [[ $EUID -eq 0 ]]; then
+        export GOPATH="/root/go"
+    else
+        export GOPATH="$HOME/go"
+    fi
+    export GOPATH
+
     export PATH=$PATH:$GOPATH/bin
+    # Ensure PATH persists for root and normal user
+    echo "export PATH=/usr/local/bin:/usr/bin:/bin:/root/go/bin:/opt/recontools:\$PATH" >> /root/.bashrc
+    echo "export PATH=/usr/local/bin:/usr/bin:/bin:/root/go/bin:/opt/recontools:\$PATH" >> /root/.zshrc
+
+    if [[ -n "$SUDO_USER" ]]; then
+        USER_HOME="/home/$SUDO_USER"
+        echo "export PATH=/usr/local/bin:/usr/bin:/bin:/root/go/bin:/opt/recontools:\$PATH" >> "$USER_HOME/.bashrc"
+        echo "export PATH=/usr/local/bin:/usr/bin:/bin:/root/go/bin:/opt/recontools:\$PATH" >> "$USER_HOME/.zshrc"
+    fi
+
     
     # Create go directory if it doesn't exist
     mkdir -p "$GOPATH/bin"
@@ -139,7 +156,6 @@ install_go_tools() {
         # Extra recon & fuzzing
         "github.com/hakluke/hakrawler@latest"
         "github.com/ffuf/ffuf@latest"
-        "github.com/assetnote/kiterunner/cmd/kr@latest"
         "github.com/hahwul/dalfox/v2@latest"
         "github.com/sensepost/gowitness@latest"
         "github.com/projectdiscovery/asnmap/cmd/asnmap@latest"
@@ -163,12 +179,37 @@ install_go_tools() {
     echo 'export PATH=$PATH:$GOPATH/bin' >> ~/.bashrc
 
     # Symlink important Go binaries so ReconMaster can use them under sudo/root
-    local bins=(subfinder naabu httpx dnsx katana nuclei assetfinder waybackurls gau gf hakrawler ffuf kr dalfox gowitness asnmap)
+    local bins=(subfinder naabu httpx dnsx katana nuclei assetfinder waybackurls gau gf hakrawler ffuf dalfox gowitness asnmap)
     for bin in "${bins[@]}"; do
         if [[ -f "$GOPATH/bin/$bin" ]]; then
             ln -sf "$GOPATH/bin/$bin" "/usr/local/bin/$bin" 2>/dev/null || true
         fi
     done
+    echo -e "${YELLOW}[*] Installing Kiterunner manually...${NC}"
+
+    if [[ ! -d "/opt/recontools/kiterunner" ]]; then
+        git clone https://github.com/assetnote/kiterunner /opt/recontools/kiterunner
+    fi
+
+    cd /opt/recontools/kiterunner
+
+    # Build Kiterunner
+    make build || echo -e "${RED}[!] Failed to build Kiterunner (kr binary may be missing)${NC}"
+
+    # Try to detect the built kr binary (supports different names)
+    KR_BIN="/opt/recontools/kiterunner/dist/kr-linux-amd64"
+    if [[ ! -f "$KR_BIN" ]]; then
+        KR_BIN="/opt/recontools/kiterunner/dist/kr"
+    fi
+
+    if [[ -f "$KR_BIN" ]]; then
+        ln -sf "$KR_BIN" /usr/local/bin/kr 2>/dev/null || true
+        echo -e "${GREEN}[✔] Kiterunner installed: /usr/local/bin/kr${NC}"
+    else
+        echo -e "${RED}[!] Kiterunner binary not found in dist/ (kr or kr-linux-amd64)${NC}"
+    fi
+
+    cd "$INSTALL_DIR"
 
     echo -e "${GREEN}[✔] Go tools installation completed${NC}"
 }
@@ -176,6 +217,8 @@ install_go_tools() {
 # Install additional tools
 install_additional_tools() {
     echo -e "${CYAN}[*] Installing additional reconnaissance tools...${NC}"
+
+    export GOPATH="/root/go"
     
     # Install from apt 
     apt install -y \
@@ -198,18 +241,32 @@ install_additional_tools() {
     mkdir -p /opt/recontools
     cd /opt/recontools
 
+    
     # Subdomain takeover (Subzy)
-    if [[ ! -d "subzy" ]]; then
-        echo -e "${YELLOW}[*] Cloning Subzy (subdomain takeover)...${NC}"
-        git clone https://github.com/LukaSikic/subzy.git
-        cd subzy
-        go install ./... || true
-        cd ..
-        # Ensure subzy is globally available
-        if [[ -n "$GOPATH" && -f "$GOPATH/bin/subzy" ]]; then
-            ln -sf "$GOPATH/bin/subzy" /usr/local/bin/subzy 2>/dev/null || true
-        fi
+    echo -e "${YELLOW}[*] Installing Subzy (subdomain takeover)...${NC}"
+
+    # Install via go install (official)
+    go install github.com/LukaSikic/subzy@latest || true
+
+    # UNIVERSAL FIX — detect Subzy from ALL possible build locations
+    SUBZY_PATH=""
+
+    if [[ -f "$GOPATH/bin/subzy" ]]; then
+        SUBZY_PATH="$GOPATH/bin/subzy"
+    elif [[ -f "/root/go/bin/subzy" ]]; then
+        SUBZY_PATH="/root/go/bin/subzy"
+    elif [[ -f "/opt/recontools/subzy/subzy" ]]; then
+        SUBZY_PATH="/opt/recontools/subzy/subzy"
     fi
+
+    # If found → symlink to /usr/local/bin/subzy
+    if [[ -n "$SUBZY_PATH" ]]; then
+        ln -sf "$SUBZY_PATH" /usr/local/bin/subzy 2>/dev/null || true
+        echo -e "${GREEN}[✔] Subzy installed → /usr/local/bin/subzy${NC}"
+    else
+        echo -e "${RED}[!] Subzy binary not found — install may have failed${NC}"
+    fi
+
 
     # ParamSpider (parameter discovery)
     if [[ ! -d "ParamSpider" ]]; then
@@ -218,6 +275,7 @@ install_additional_tools() {
         cd ParamSpider
         pip3 install -r requirements.txt --break-system-packages 2>/dev/null || pip3 install -r requirements.txt || true
         cd ..
+        mkdir -p /opt/recontools/ParamSpider/output
     fi
 
     # Arjun (hidden parameter discovery)
@@ -236,37 +294,85 @@ install_additional_tools() {
         cd XSStrike
         pip3 install -r requirements.txt --break-system-packages 2>/dev/null || pip3 install -r requirements.txt || true
         cd ..
+        if [[ -f "/opt/recontools/XSStrike/xsstrike.py" ]]; then
+            :
+        elif [[ -f "/opt/recontools/XSStrike/xsstrike/xsstrike.py" ]]; then
+            mv /opt/recontools/XSStrike/xsstrike/xsstrike.py /opt/recontools/XSStrike/
+        fi
     fi
 
     # Smuggler (HTTP request smuggling)
     if [[ ! -d "smuggler" ]]; then
         echo -e "${YELLOW}[*] Cloning Smuggler...${NC}"
         git clone https://github.com/defparam/smuggler.git
-        # Python script, no build needed
     fi
+
+    # FIX: Normalize Smuggler path
+    if [[ -f "/opt/recontools/smuggler/smuggler.py" ]]; then
+        :
+    elif [[ -f "/opt/recontools/smuggler/smuggler/smuggler.py" ]]; then
+        mv /opt/recontools/smuggler/smuggler/smuggler.py /opt/recontools/smuggler/
+    elif [[ -f "/opt/recontools/smuggler/smuggler/__main__.py" ]]; then
+        cp /opt/recontools/smuggler/smuggler/__main__.py /opt/recontools/smuggler/smuggler.py
+    fi
+
 
     # MassDNS (fast DNS bruteforcer)
-    if [[ ! -d "massdns" ]] ; then
+    if [[ ! -d "massdns" ]]; then
         echo -e "${YELLOW}[*] Cloning MassDNS...${NC}"
         git clone https://github.com/blechschmidt/massdns.git
-        cd massdns
-        make
-        ln -sf /opt/recontools/massdns/bin/massdns /usr/local/bin/massdns
-        cd ..
-        wget -q https://raw.githubusercontent.com/blechschmidt/massdns/master/lists/resolvers.txt \
-            -O /opt/recontools/massdns/resolvers.txt
     fi
 
-    # LinkFinder (JS endpoint finder) - must match /opt/recontools/LinkFinder/linkfinder.py
+    cd massdns
+    make || echo -e "${RED}[!] MassDNS build failed${NC}"
+
+    # Detect binary location
+    if [[ -f "bin/massdns" ]]; then
+        MASSDNS_BIN="/opt/recontools/massdns/bin/massdns"
+    elif [[ -f "massdns" ]]; then
+        MASSDNS_BIN="/opt/recontools/massdns/massdns"
+    else
+        MASSDNS_BIN=""
+    fi
+
+    # Create symlink if found
+    if [[ -n "$MASSDNS_BIN" ]]; then
+        ln -sf "$MASSDNS_BIN" /usr/local/bin/massdns 2>/dev/null || true
+        echo -e "${GREEN}[✔] MassDNS installed to /usr/local/bin/massdns${NC}"
+    else
+        echo -e "${RED}[!] MassDNS binary not found after build${NC}"
+    fi
+
+    # Download resolvers
+    wget -q https://raw.githubusercontent.com/blechschmidt/massdns/master/lists/resolvers.txt \
+        -O /opt/recontools/massdns/resolvers.txt
+
+    cd ..
+
+
+    # LinkFinder (JS endpoint finder)
     if [[ ! -d "LinkFinder" ]]; then
         echo -e "${YELLOW}[*] Cloning LinkFinder...${NC}"
         git clone https://github.com/GerbenJavado/LinkFinder.git
         cd LinkFinder
-        pip3 install -r requirements.txt --break-system-packages 2>/dev/null || pip3 install -r requirements.txt || true
+
+        pip3 install -r requirements.txt --break-system-packages \
+            2>/dev/null || pip3 install -r requirements.txt || true
+
+        # FIX: Move linkfinder.py to correct directory
+        if [[ -f "linkfinder.py" ]]; then
+            mv linkfinder.py /opt/recontools/LinkFinder/
+        elif [[ -f "LinkFinder/linkfinder.py" ]]; then
+            mv LinkFinder/linkfinder.py /opt/recontools/LinkFinder/
+        fi
+
         cd ..
-        ln -sf /opt/recontools/LinkFinder/linkfinder.py /usr/local/bin/linkfinder
-        chmod +x /usr/local/bin/linkfinder
     fi
+
+    # Symlink
+    ln -sf /opt/recontools/LinkFinder/linkfinder.py /usr/local/bin/linkfinder 2>/dev/null || true
+    chmod +x /usr/local/bin/linkfinder
+
 
     # JS Beautifier (for JS analysis)
     if ! pip3 show jsbeautifier >/dev/null 2>&1; then
@@ -297,14 +403,30 @@ install_additional_tools() {
         echo -e "${GREEN}[✔] cloud_enum already present in /opt/recontools/cloud_enum${NC}"
     fi
 
-    echo -e "${YELLOW}[*] Ensuring GF patterns installed...${NC}"
+    echo -e "${YELLOW}[*] Installing GF patterns...${NC}"
 
-    # Install for root (sudo mode)
+    # Create ~/.gf for root
     mkdir -p ~/.gf
-    cp gf/examples/*.json ~/.gf/ 2>/dev/null || true
-    cp Gf-Patterns/*.json ~/.gf/ 2>/dev/null || true
 
-    # Install also for the normal user
+    # Fix GF pattern installation (works for any GOPATH layout)
+    EXAMPLE_DIRS=$(find "$GOPATH/pkg/mod" -type d -name "examples" 2>/dev/null)
+
+    if [[ -z "$EXAMPLE_DIRS" ]]; then
+        echo "[!] No GF example directories found. Skipping."
+    else
+        for d in $EXAMPLE_DIRS; do
+            cp "$d"/*.json ~/.gf/ 2>/dev/null || true
+        done
+    fi
+
+
+    # 2. Install community patterns
+    if [[ ! -d "/opt/recontools/Gf-Patterns" ]]; then
+        git clone https://github.com/1ndianl33t/Gf-Patterns /opt/recontools/Gf-Patterns 2>/dev/null || true
+    fi
+    cp /opt/recontools/Gf-Patterns/*.json ~/.gf/ 2>/dev/null || true
+
+    # 3. Replicate patterns for normal user (if script run via sudo)
     if [[ -n "$SUDO_USER" ]]; then
         USER_HOME="/home/$SUDO_USER"
         mkdir -p "$USER_HOME/.gf"
@@ -314,16 +436,41 @@ install_additional_tools() {
 
     # Kiterunner wordlists
     mkdir -p /opt/recontools/kiterunner_wordlists
-    wget -q https://wordlists-cdn.assetnote.io/data/kiterunner/routes-large.kite \
-        -O /opt/recontools/kiterunner_wordlists/routes-large.kite
+    echo -e "${YELLOW}[*] Downloading Kiterunner wordlists...${NC}"
+
+    # Download routes-small.kite
+    if ! wget -q https://wordlists-cdn.assetnote.io/data/kiterunner/routes-small.kite \
+        -O /opt/recontools/kiterunner_wordlists/routes-small.kite; then
+        echo -e "${YELLOW}[!] Failed to download routes-small.kite (skipping)${NC}"
+    fi
+
+    # Download routes-medium.kite
+    if ! wget -q https://wordlists-cdn.assetnote.io/data/kiterunner/routes-medium.kite \
+        -O /opt/recontools/kiterunner_wordlists/routes-medium.kite; then
+        echo -e "${YELLOW}[!] Failed to download routes-medium.kite (skipping)${NC}"
+    fi
+
+    # Symlink one as default for kr
+    if [[ -f /opt/recontools/kiterunner_wordlists/routes-medium.kite ]]; then
+        ln -sf /opt/recontools/kiterunner_wordlists/routes-medium.kite /usr/local/bin/routes.kite
+    elif [[ -f /opt/recontools/kiterunner_wordlists/routes-small.kite ]]; then
+        ln -sf /opt/recontools/kiterunner_wordlists/routes-small.kite /usr/local/bin/routes.kite
+    fi
+
+    # Ensure all python tools in /opt/recontools are executable
+    find /opt/recontools -type f -name "*.py" -exec chmod +x {} \; 2>/dev/null || true
 
     echo -e "${GREEN}[✔] Additional tools installed${NC}"
     cd "$INSTALL_DIR"
+
 }
 
 # Setup Python environment
 setup_python_env() {
     echo -e "${CYAN}[*] Setting up Python environment...${NC}"
+
+    update-alternatives --set python /usr/bin/python3 2>/dev/null || true
+    update-alternatives --set python3 /usr/bin/python3 2>/dev/null || true
     
     # Install Python packages
     pip3 install --upgrade pip --break-system-packages || true
@@ -341,6 +488,12 @@ setup_python_env() {
         dnspython
 
     pip3 install --break-system-packages pandas numpy || true
+
+    python3 - << 'EOF'
+import requests, urllib3, bs4, lxml, selenium, tldextract, colorama, dnslib, dns
+import pandas, numpy
+print("Python environment validated successfully.")
+EOF
     
     echo -e "${GREEN}[✔] Python environment setup completed${NC}"
 }
@@ -352,6 +505,9 @@ setup_reconmaster() {
     cd "$INSTALL_DIR"
 
     if [[ -f "$INSTALL_DIR/reconmaster.py" ]]; then
+        if ! head -n 1 "$INSTALL_DIR/reconmaster.py" | grep -q "python"; then
+            sed -i '1s|^|#!/usr/bin/python3\n|' "$INSTALL_DIR/reconmaster.py"
+        fi
         ln -sf "$INSTALL_DIR/reconmaster.py" /usr/local/bin/reconmaster
         chmod +x /usr/local/bin/reconmaster
         echo -e "${GREEN}[✔] ReconMaster installed to /usr/local/bin/reconmaster${NC}"

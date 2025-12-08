@@ -66,6 +66,35 @@ class ReconMaster:
         self.tools_status = {}
         self.results = {}
         self.setup_complete = False
+
+    def find_tool(self, name):
+        paths = [
+            shutil.which(name),
+            f"/usr/local/bin/{name}",
+            f"/usr/bin/{name}",
+            f"/root/go/bin/{name}",
+            f"/opt/recontools/{name}/{name}",
+        ]
+        for p in paths:
+            if p and os.path.exists(p):
+                return p
+        return None
+
+    def get_tool(self, name, fallback=None):
+        """
+        Return the best path to a tool:
+        - Use self.tools_status[name]['path'] if it exists and is valid
+        - Else use fallback if given
+        - Else just return the name (hope it's in PATH)
+        """
+        info = self.tools_status.get(name)
+        if isinstance(info, dict):
+            path = info.get('path')
+            if path and os.path.exists(path):
+                return path
+        return fallback or name
+
+
         
     def display_banner(self):
         """Display beautiful ASCII banner"""
@@ -94,11 +123,11 @@ class ReconMaster:
         """
         Check if a tool is installed.
 
-        - For normal CLI tools: use shutil.which()
+        - For normal CLI tools: ugh
         - For special tools (ParamSpider, Arjun, etc.): we handle them separately in initialize_tools()
         """
-        # Simple PATH-based check
-        path = shutil.which(tool_name)
+        path = self.find_tool(tool_name)
+
 
         if path:
             self.tools_status[tool_name] = {
@@ -117,7 +146,7 @@ class ReconMaster:
     def initialize_tools(self):
         """Initialize and check all required tools"""
 
-    # CLI-based tools that MUST exist in PATH
+        # CLI-based tools that MUST exist in PATH
         tools_to_check = [
             ('subfinder', 'go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest'),
             ('amass', 'sudo apt install amass'),
@@ -159,8 +188,9 @@ class ReconMaster:
             'xsstrike': '/opt/recontools/XSStrike/xsstrike.py',
             'smuggler': '/opt/recontools/smuggler/smuggler.py',
             'linkfinder': '/opt/recontools/LinkFinder/linkfinder.py',
-            'subzy': shutil.which('subzy') or '/usr/local/bin/subzy',  # symlink created by install.sh
-            'kr': shutil.which('kr') or '/usr/local/bin/kr',
+            'subzy': self.find_tool('subzy'),
+            'kr': self.find_tool('kr'),
+
         }
 
         print(f"\n{Colors.CYAN}{Colors.BOLD}[*] Checking Python/Opt-based Tools...{Colors.RESET}\n")
@@ -477,7 +507,8 @@ commands will be suggested in the tool check module.{Colors.RESET}
         if self.tools_status.get('subfinder', {}).get('installed'):
             print(f"{Colors.YELLOW}[*] Running Subfinder...{Colors.RESET}")
             subfinder_output = f"{self.output_dir}/subfinder_raw.txt"
-            cmd = f"subfinder -d {self.domain} -all -recursive -o {subfinder_output}"
+            subfinder_bin = self.get_tool('subfinder')
+            cmd = f"{subfinder_bin} -d {self.domain} -all -recursive -o {subfinder_output}"
             if self.run_command(cmd, timeout=600):
                 tools_used.append('Subfinder')
                 raw_files.append(subfinder_output)
@@ -491,6 +522,7 @@ commands will be suggested in the tool check module.{Colors.RESET}
         if self.tools_status.get('amass', {}).get('installed'):
             print(f"{Colors.YELLOW}[*] Running Amass (passive)...{Colors.RESET}")
             amass_output = f"{self.output_dir}/amass_raw.txt"
+            amass_bin = self.get_tool('amass')
             cmd = f"amass enum -passive -d {self.domain} -o {amass_output}"
             if self.run_command(cmd, timeout=1800):
                 tools_used.append('Amass')
@@ -505,6 +537,7 @@ commands will be suggested in the tool check module.{Colors.RESET}
         if self.tools_status.get('assetfinder', {}).get('installed'):
             print(f"{Colors.YELLOW}[*] Running Assetfinder...{Colors.RESET}")
             assetfinder_output = f"{self.output_dir}/assetfinder_raw.txt"
+            assetfinder_bin = self.get_tool('assetfinder')
             cmd = f"assetfinder --subs-only {self.domain} > {assetfinder_output}"
             if self.run_command(cmd):
                 tools_used.append('Assetfinder')
@@ -579,6 +612,7 @@ commands will be suggested in the tool check module.{Colors.RESET}
         print(f"\n{Colors.CYAN}{Colors.BOLD}[*] Starting DNS Resolution...{Colors.RESET}\n")
         
         output_file = f"{self.output_dir}/dns_resolved.txt"
+        dnsx_bin = self.get_tool('dnsx')
         cmd = f"dnsx -l {subdomains_file} -a -aaaa -cname -ns -ptr -mx -soa -resp -o {output_file}"
         
         if self.run_command(cmd, timeout=300):
@@ -625,9 +659,9 @@ commands will be suggested in the tool check module.{Colors.RESET}
 
         # Use JSON output to avoid messy text output with metadata
         raw_httpx_output = f"{self.output_dir}/httpx_raw.json"
-
+        httpx_bin = self.get_tool('httpx')
         cmd = (
-            f"httpx -l {subdomains_file} "
+            f"{httpx_bin} -l {subdomains_file} "
             f"-sc -title -ip -cdn -json "
             f"-threads 50 "
             f"-timeout 10 "
@@ -691,8 +725,9 @@ commands will be suggested in the tool check module.{Colors.RESET}
             print(f"{Colors.YELLOW}[*] Re-validating alive hosts using HTTPX JSON...{Colors.RESET}")
 
             httpx_recheck = f"{self.output_dir}/alive_recheck.json"
+            httpx_bin = self.get_tool('httpx')
             cmd = (
-                f"httpx -l {alive_file} "
+                f"{httpx_bin} -l {alive_file} "
                 f"-sc -title -ip -cdn -json "
                 f"-threads 30 "
                 f"-timeout 10 "
@@ -821,9 +856,9 @@ commands will be suggested in the tool check module.{Colors.RESET}
         output_file = f"{self.output_dir}/ports_fast.txt"
         
         if use_naabu:
-            # Naabu fast scan (full port scan + improved stability)
+            naabu_bin = self.get_tool('naabu')
             cmd = (
-                f"naabu -l {alive_file} "
+                f"{naabu_bin} -l {alive_file} "
                 f"-p 1-65535 "
                 f"-rate 2000 "
                 f"-scan-all-ips "
@@ -831,13 +866,12 @@ commands will be suggested in the tool check module.{Colors.RESET}
                 f"-no-color "
                 f"-o {output_file}"
             )
-
-
             timeout = 300
         else:
-            # Nmap fast scan
-            cmd = f"nmap -iL {alive_file} -p 1-1000 -T4 --open -oG {output_file}"
+            nmap_bin = self.get_tool('nmap')
+            cmd = f"{nmap_bin} -iL {alive_file} -p 1-1000 -T4 --open -oG {output_file}"
             timeout = 600
+
         
         if self.run_command(cmd, timeout=timeout):
             print(f"{Colors.GREEN}[✔] Fast port scan completed with {scanner}{Colors.RESET}")
@@ -927,8 +961,9 @@ commands will be suggested in the tool check module.{Colors.RESET}
         alive_file = final_input
         
         output_file = f"{self.output_dir}/ports_full.txt"
-        cmd = f"nmap -iL {alive_file} -p- -sV -sC -O --open -T4 -oA {output_file.replace('.txt', '')}"
-        
+        nmap_bin = self.get_tool('nmap')
+        cmd = f"{nmap_bin} -iL {alive_file} -p- -sV -sC -O --open -T4 -oA {output_file.replace('.txt', '')}"
+     
         if self.run_command(cmd, timeout=3600):  # 1 hour timeout
             print(f"{Colors.GREEN}[✔] Full port scan completed{Colors.RESET}")
             
@@ -998,7 +1033,9 @@ commands will be suggested in the tool check module.{Colors.RESET}
         if self.tools_status.get('katana', {}).get('installed'):
             print(f"{Colors.YELLOW}[*] Running Katana crawler...{Colors.RESET}")
             katana_output = f"{self.output_dir}/katana_raw.txt"
-            cmd = f"katana -u https://{self.domain} -d 3 -o {katana_output}"
+            katana_bin = self.get_tool('katana')
+            cmd = f"{katana_bin} -u https://{self.domain} -d 3 -o {katana_output}"
+
             if self.run_command(cmd, timeout=300):
                 tools_used.append('Katana')
                 raw_files.append(katana_output)
@@ -1012,7 +1049,9 @@ commands will be suggested in the tool check module.{Colors.RESET}
         if self.tools_status.get('gau', {}).get('installed'):
             print(f"{Colors.YELLOW}[*] Running Gau...{Colors.RESET}")
             gau_output = f"{self.output_dir}/gau_raw.txt"
-            cmd = f"gau {self.domain} > {gau_output}"
+            gau_bin = self.get_tool('gau')
+            cmd = f"{gau_bin} {self.domain} > {gau_output}"
+
             if self.run_command(cmd, timeout=300):
                 tools_used.append('Gau')
                 raw_files.append(gau_output)
@@ -1026,7 +1065,9 @@ commands will be suggested in the tool check module.{Colors.RESET}
         if self.tools_status.get('waybackurls', {}).get('installed'):
             print(f"{Colors.YELLOW}[*] Running Waybackurls...{Colors.RESET}")
             wayback_output = f"{self.output_dir}/waybackurls_raw.txt"
-            cmd = f"waybackurls {self.domain} > {wayback_output}"
+            wayback_bin = self.get_tool('waybackurls')
+            cmd = f"{wayback_bin} {self.domain} > {wayback_output}"
+
             if self.run_command(cmd, timeout=300):
                 tools_used.append('Waybackurls')
                 raw_files.append(wayback_output)
@@ -1131,7 +1172,8 @@ commands will be suggested in the tool check module.{Colors.RESET}
             host = re.sub(r'^https?://', '', host).split('/')[0]
             print(f"  Progress: {i+1}/{total_hosts} - Testing {host}", end='\r')
             
-            cmd = f"wafw00f {host}"
+            wafw00f_bin = self.get_tool('wafw00f')
+            cmd = f"{wafw00f_bin} {host}"
             try:
                 result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
                 output = result.stdout + result.stderr
@@ -1229,13 +1271,15 @@ commands will be suggested in the tool check module.{Colors.RESET}
         update_templates = input(f"{Colors.YELLOW}[?] Update Nuclei templates before scanning? (y/n): {Colors.RESET}").lower().strip()
         if update_templates == 'y':
             print(f"{Colors.YELLOW}[*] Updating Nuclei templates...{Colors.RESET}")
-            if self.run_command("nuclei -ut", timeout=600):
+            nuclei_bin = self.get_tool('nuclei')
+            if self.run_command(f"{nuclei_bin} -ut", timeout=600):
                 print(f"{Colors.GREEN}[✔] Templates updated{Colors.RESET}")
             else:
                 print(f"{Colors.RED}[!] Template update failed, continuing...{Colors.RESET}")
         
         output_file = f"{self.output_dir}/nuclei_output.txt"
-        cmd = f"nuclei -l {alive_file} -severity low,medium,high,critical -o {output_file}"
+        nuclei_bin = self.get_tool('nuclei')
+        cmd = f"{nuclei_bin} -l {alive_file} -severity low,medium,high,critical -o {output_file}"
 
         print(f"{Colors.YELLOW}[*] Running Nuclei vulnerability scan...{Colors.RESET}")
         print(f"{Colors.YELLOW}[!] This may take several minutes...{Colors.RESET}")
@@ -1301,8 +1345,9 @@ commands will be suggested in the tool check module.{Colors.RESET}
         if self.tools_status.get('paramspider', {}).get('installed'):
             print(f"{Colors.YELLOW}[*] Running ParamSpider...{Colors.RESET}")
             output_ps = f"{param_dir}/paramspider.txt"
+            paramspider_bin = self.get_tool('paramspider', "/opt/recontools/ParamSpider/paramspider.py")
             cmd = (
-                f"python3 /opt/recontools/ParamSpider/paramspider.py "
+                f"python3 {paramspider_bin} "
                 f"-d {self.domain} "
                 f"--subs "
                 f"--exclude woff,css,png,jpg,gif,svg "
@@ -1328,10 +1373,12 @@ commands will be suggested in the tool check module.{Colors.RESET}
                 return
 
             output_arjun = f"{param_dir}/arjun.json"
+            arjun_bin = self.get_tool('arjun', "/opt/recontools/Arjun/arjun.py")
             cmd = (
-                f"python3 /opt/recontools/Arjun/arjun.py "
+                f"python3 {arjun_bin} "
                 f"-i {urls_file} -t 20 --json -o {output_arjun}"
             )
+
 
             if self.run_command(cmd, timeout=1200):
                 print(f"{Colors.GREEN}[✔] Arjun completed{Colors.RESET}")
@@ -1459,10 +1506,12 @@ commands will be suggested in the tool check module.{Colors.RESET}
         open(endpoints_output, "w").close()
 
         for js_file in downloaded_files:
+            linkfinder_bin = self.get_tool('linkfinder', "/opt/recontools/LinkFinder/linkfinder.py")
             cmd = (
-                f"python3 /opt/recontools/LinkFinder/linkfinder.py "
+                f"python3 {linkfinder_bin} "
                 f"-i '{js_file}' -o cli --no-color --regex >> {endpoints_output}"
-            )
+            )   
+
             self.run_command(cmd, timeout=60)
 
         #  FIND SECRETS 
@@ -1574,8 +1623,9 @@ commands will be suggested in the tool check module.{Colors.RESET}
 
             print(f"\n{Colors.CYAN}[*] Fuzzing {host}{Colors.RESET}")
 
+            ffuf_bin = self.get_tool('ffuf')
             cmd = (
-                f"ffuf -u {host}/FUZZ "
+                f"{ffuf_bin} -u {host}/FUZZ "
                 f"-w {default_wordlist} "
                 f"-recursion "
                 f"-recursion-depth 2 "
@@ -1611,7 +1661,8 @@ commands will be suggested in the tool check module.{Colors.RESET}
 
         output_file = f"{adv_dir}/advanced_urls.txt"
 
-        cmd = f"echo https://{self.domain} | hakrawler -depth 3 -scope subs -plain > {output_file}"
+        hakrawler_bin = self.get_tool('hakrawler')
+        cmd = f"echo https://{self.domain} | {hakrawler_bin} -depth 3 -scope subs -plain > {output_file}"
 
         if self.run_command(cmd, timeout=600):
             print(f"{Colors.GREEN}[✔] Hakrawler completed{Colors.RESET}")
@@ -1787,7 +1838,9 @@ commands will be suggested in the tool check module.{Colors.RESET}
         shots_dir = f"{self.output_dir}/screenshots"
         Path(shots_dir).mkdir(exist_ok=True)
 
-        cmd = f"gowitness file -f '{alive_file}' -P '{shots_dir}'"
+        gowitness_bin = self.get_tool('gowitness')
+        cmd = f"{gowitness_bin} file -f '{alive_file}' -P '{shots_dir}'"
+
         if self.run_command(cmd, timeout=1800):
             print(f"{Colors.GREEN}[✔] Screenshot capture completed{Colors.RESET}")
             print(f"{Colors.GREEN}[✔] Screenshots saved in: {shots_dir}{Colors.RESET}")
@@ -1857,9 +1910,11 @@ commands will be suggested in the tool check module.{Colors.RESET}
             return
 
         massdns_output = f"{dns_dir}/massdns_raw.txt"
+        massdns_bin = self.get_tool('massdns')
         cmd = (
-            f"massdns -r '{resolvers}' -t A -o S -w '{massdns_output}' '{input_file}'"
-        )
+            f"{massdns_bin} -r '{resolvers}' -t A -o S -w '{massdns_output}' '{input_file}'"
+        )          
+
 
         if not self.run_command(cmd, timeout=1800):
             print(f"{Colors.RED}[!] MassDNS bruteforce failed{Colors.RESET}")
@@ -2175,8 +2230,9 @@ commands will be suggested in the tool check module.{Colors.RESET}
             clean_host = host.replace("https://", "").replace("http://", "").strip("/")
             output_file = f"{api_dir}/{clean_host}_kr_results.txt"
 
+            kr_bin = self.get_tool('kr')
             cmd = (
-                f"kr brute {host} "
+                f"{kr_bin} brute {host} "
                 f"-w {wordlist} "
                 f"-o {output_file} "
                 f"--silent"
@@ -2232,13 +2288,15 @@ commands will be suggested in the tool check module.{Colors.RESET}
         if self.tools_status.get('subzy', {}).get('installed'):
             print(f"{Colors.YELLOW}[*] Running Subzy...{Colors.RESET}")
 
+            subzy_bin = self.get_tool('subzy')
             cmd = (
-                f"/usr/local/bin/subzy run "
+                f"{subzy_bin} run "
                 f"--targets {subdomains_file} "
                 f"--concurrency 50 "
                 f"--hide_fails "
                 f"--output {output_file}"
             )
+
 
             if self.run_command(cmd, timeout=900):
                 print(f"{Colors.GREEN}[✔] Subzy completed{Colors.RESET}")
