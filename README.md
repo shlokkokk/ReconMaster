@@ -1,5 +1,18 @@
 # ReconMaster 🎯
 
+> [!IMPORTANT]
+> ### 🚀 ReconMaster is now **Oculus v3.0**!
+> The development of this tool has migrated to a new, dedicated repository: **[Oculus](https://github.com/shlokkokk/Oculus)**.
+> 
+> **Why upgrade to v3.0 (Oculus)?**
+> - **Blazing Speed:** Full concurrency engine using `ThreadPoolExecutor`.
+> - **Extreme Resilience:** Hardened command execution with automatic retries and SSL-failure handling.
+> - **State Management:** Persistent sessions with auto-resume capability.
+> - **Advanced Analysis:** New logic for deep CORS, XSS, and CNAME takeover detection.
+> - **Stunning UI:** Enhanced real-time output and professional HTML reporting.
+> 
+> This repository (v2.0) remains here as a stable legacy version. For the latest features and security updates, please move to the new home.
+
 **Professional Reconnaissance Framework for Kali Linux**
 
 ![Version](https://img.shields.io/badge/version-2.0-red.svg)
